@@ -20,7 +20,7 @@ function getModel() {
   const envModel = (process.env.OPENAI_MODEL || MODEL || '').trim()
   if (ALLOWED_MODELS.includes(envModel)) return envModel
   try { console.warn('[advice] Unsupported OPENAI_MODEL:', envModel, '— falling back to gpt-4o-mini') } catch {}
-  return 'gpt-4o-mini'
+  return 'gpt-4o'
 }
 
 type Phase = 'NEED_CONTEXT' | 'CLARIFY_GOAL' | 'SUMMARY_PERMISSION' | 'AWAIT_PERMISSION' | 'SUGGEST_OPTIONS'
@@ -205,13 +205,13 @@ async function streamOpenAI({ input, history, directives = [] }: {
     },
     body: JSON.stringify({
       model: getModel(),
-      temperature: 0.3,
+      temperature: 0.0,
       max_tokens: 400,
       presence_penalty: 0,
       frequency_penalty: 0,
       stream: true,
       messages,
-      stop: ["\\n\\n"],
+      response_format: { type: 'text' },
     }),
     signal: controller.signal,
   }).finally(() => clearTimeout(t))
