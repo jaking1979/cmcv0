@@ -10,11 +10,7 @@ type Phase = 'NEED_CONTEXT' | 'CLARIFY_GOAL' | 'SUMMARY_PERMISSION' | 'AWAIT_PER
 const USE_OPENAI = true
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms))
 
-const CRISIS_TEXT = `Thank you so much for sharing that. It appears that you are asking me something that is beyond my ability to help with. Remember, I am not a therapist or a mental health professional, I'm a behavior coach!
-
-If you are in danger or need immediate help, please call 911 (or call 988 if you are feeling suicidal or are having thoughts about hurting yourself).
-
-If you're looking for someone to help you beyond behavior coaching, you should connect with a licensed therapist.`
+const CRISIS_TEXT = `Thanks for telling me. I’m a behavior coach, not a clinician, and what you’re describing sounds like it needs immediate support. If you’re in danger, call 911. If you’re thinking about hurting yourself or feel suicidal, call or text 988 (or chat at 988lifeline.org) for 24/7 help.`
 
 // ── Demo scenarios (unchanged)
 const demoScenarios: Record<string, { title: string; text: string; reflection: string; validation: string; followUp: string; actions: string[] }> = {
@@ -322,8 +318,7 @@ export default function AdvicePage() {
         <div className="max-w-3xl mx-auto">
           <h1 className="text-2xl font-semibold mb-2 text-gray-900">🧭 Get Advice</h1>
           <p className="text-sm text-gray-600 mb-4">
-            Paste your scenario or pick a demo. I’ll either ask for a bit more context, or—once clear—summarize,
-            ask permission, and offer a short menu of behavioral options.
+            Share what’s going on or pick a demo. If I need more context, I’ll reflect one thing I heard and ask one question. When it’s clear, I’ll give a brief summary, ask if you want options, then offer a few evidence‑based choices. You can plan a first small step if you want.
           </p>
 
           <div className="flex gap-2 mb-4">
@@ -464,18 +459,18 @@ export default function AdvicePage() {
         >
           <div className="space-y-3 text-sm text-gray-700">
             <p>
-              This is a demo of the advice experience. You can paste your own situation or pick a demo scenario.
-              The coach will first decide if it needs more context (short, warm reflection + one question).
-              Once clear, it summarizes, asks permission, then offers a short menu of behavioral options
-              (CBT/DBT/ACT/Self-Compassion/Mindfulness; harm-reduction only when appropriate and with a safety note).
+              This page is a demo of the advice experience. Share your situation or pick a demo. I’ll keep it conversational and practical.
+            </p>
+            <p>
+              Flow: If I need more context, I’ll reflect back a detail and ask one open question. When it’s clear, I’ll summarize briefly, ask permission, and offer a few evidence‑based options (CBT/DBT/ACT/Mindfulness/Self‑Compassion). You can plan a first small step if that helps.
             </p>
             <ul className="list-disc pl-5">
-              <li>Never more than one question at a time.</li>
-              <li>Keeps validation separate from permission-asking.</li>
-              <li>After you choose an option, you can plan the first small step.</li>
+              <li>One question per turn.</li>
+              <li>No lists of options until you say yes.</li>
+              <li>Warm, plain language—no clinical advice.</li>
             </ul>
             <p className="text-gray-600">
-              This is coaching, not medical care. If there’s an emergency, call 911. For suicidal thoughts, call 988.
+              If there’s an emergency, call 911. For suicidal thoughts, call or text 988 (24/7), or chat at 988lifeline.org.
             </p>
           </div>
         </GlobalInstructionsModal>
