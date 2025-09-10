@@ -348,7 +348,7 @@ export default function AdvicePage() {
 
           {/* Transcript window (scrolling like onboarding) */}
           <div className="mb-3">
-            <div className="max-h-[50vh] overflow-y-auto space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="h-[50vh] overflow-y-auto space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
               {messages.map((m, i) => (
                 <div key={i} className={m.role === 'user' ? 'text-right' : 'text-left'}>
                   <div
