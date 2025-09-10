@@ -73,11 +73,11 @@ export default function Home() {
       {/* First-run modal */}
       {showModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4"
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4 overflow-y-auto"
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-lg bg-white rounded-lg shadow-lg">
+          <div className="w-full max-w-lg bg-white rounded-lg shadow-lg max-h-[90vh] flex flex-col">
             <div className="border-b px-5 py-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Welcome to CMC Sober Coach (Demo)</h2>
               <button
@@ -89,7 +89,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="px-5 py-4 space-y-4 text-sm text-gray-700">
+            <div className="px-5 py-4 space-y-4 text-sm text-gray-700 flex-1 overflow-y-auto">
               <p>
                 This is a demo version of the CMC Sober Coach app. It’s a behavior coaching
                 tool, not a medical device or a mental health service. In an emergency, contact
