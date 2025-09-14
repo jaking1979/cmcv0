@@ -461,7 +461,7 @@ export default function Page() {
 
   return (
     <main className="flex h-dvh flex-col bg-white">
-      <TopNav />
+      <TopNav title="Relapse Justifications" />
       {/* Talking header (avatar + latest coach bubble + nav) */}
       <section className="sticky top-12 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75">
         <div className="mx-auto max-w-3xl px-4 py-3">
