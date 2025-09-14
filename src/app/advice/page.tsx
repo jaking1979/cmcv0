@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import TopNav from '@/components/TopNav'
 import GlobalInstructionsModal from '@/components/GlobalInstructionsModal'
+import { ChatPane } from '@/components/chat'
 
 type Msg = { role: 'user' | 'assistant'; text: string; kind?: 'FOLLOWUP' | 'ADVICE' }
 type Phase = 'NEED_CONTEXT' | 'CLARIFY_GOAL' | 'SUMMARY_PERMISSION' | 'AWAIT_PERMISSION' | 'SUGGEST_OPTIONS'
@@ -239,6 +240,16 @@ export default function AdvicePage() {
     return parts.length > 1 ? parts.slice(1).join(':').trim() : a.trim()
   }
 
+  const paneMessages = useMemo(() => {
+    const base = messages.map((m, i) => ({ id: String(i), role: m.role as any, content: m.text }));
+    if (status === 'thinking') {
+      base.push({ id: 'thinking', role: 'assistant' as const, content: 'Thinking…' });
+    } else if (status === 'streaming') {
+      base.push({ id: 'stream', role: 'assistant' as const, content: responseText + '▌' });
+    }
+    return base;
+  }, [messages, status, responseText]);
+
   const canShowButtons = mode === 'advice' && phase === 'SUGGEST_OPTIONS' && !showCrisis
 
   async function generateAdvice() {
@@ -341,54 +352,23 @@ export default function AdvicePage() {
             </select>
           </div>
 
-          {/* Transcript window (scrolling like onboarding) */}
-          <div className="mb-3">
-            <div className="h-[50vh] overflow-y-auto space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-              {messages.map((m, i) => (
-                <div key={i} className={m.role === 'user' ? 'text-right' : 'text-left'}>
-                  <div
-                    className={
-                      'inline-block max-w-[85%] rounded-lg px-3 py-2 ' +
-                      (m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-gray-900 border border-gray-200')
-                    }
-                  >
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-
-              {(status === 'thinking' || status === 'streaming') && (
-                <div className="text-left">
-                  <div className="inline-block max-w-[85%] rounded-lg px-3 py-2 bg-gray-100 text-gray-900">
-                    {status === 'thinking' ? 'Thinking…' : <>{responseText}{status === 'streaming' ? '▌' : ''}</>}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Describe what’s going on…"
-            disabled={isBusy}
-            className="w-full h-36 p-3 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                if (!isBusy) generateAdvice()
-              }
-            }}
+          <ChatPane
+            className="mb-3"
+            messages={paneMessages}
+            onSend={(v) => { setInput(v); void generateAdvice(); }}
+            isSending={isBusy}
+            inputValue={input}
+            onInputChange={setInput}
           />
 
           <div className="flex gap-2 mt-2 mb-4">
             <button
-              onClick={() => { if (!isBusy) { setMode('advice'); generateAdvice() } }}
+              onClick={() => { if (!isBusy) { setMode('advice') } }}
               disabled={isBusy}
               className={`px-3 py-2 rounded-md border ${mode==='advice' ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border-blue-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
             >Get Advice</button>
             <button
-              onClick={() => { if (!isBusy) { setMode('chat'); generateAdvice() } }}
+              onClick={() => { if (!isBusy) { setMode('chat') } }}
               disabled={isBusy}
               className={`px-3 py-2 rounded-md border ${mode==='chat' ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 border-gray-800'} disabled:opacity-50 disabled:cursor-not-allowed`}
             >Just Chat</button>

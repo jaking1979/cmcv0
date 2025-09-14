@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import TopNav from '@/components/TopNav'
+import { ChatPane } from '@/components/chat'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 
@@ -12,12 +13,6 @@ export default function OnboardingPage() {
   const [finalizing, setFinalizing] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages, loading, finalizing])
 
   useEffect(() => {
     setShowInstructions(true)
@@ -115,11 +110,6 @@ export default function OnboardingPage() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!loading) void sendCurrentInput()
-  }
-
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (isComposing) return
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -155,74 +145,22 @@ export default function OnboardingPage() {
 
   return (
     <main className="h-screen max-w-3xl mx-auto p-6 flex flex-col min-h-0">
-      {/* ✅ Global, sticky top nav */}
       <TopNav title="🧭 Onboarding Chat" onShowInstructions={() => setShowInstructions(true)} />
 
-      <section
-        ref={scrollRef}
-        className="mt-4 flex-1 min-h-0 overflow-y-auto rounded-lg border border-gray-200 bg-white p-4"
-        aria-live="polite"
-      >
-        {messages.length === 0 && (
-          <div className="text-gray-500 text-sm">
-            Welcome! Tell me a bit about yourself and what brings you here. I’ll ask one gentle question at a time.
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
-                  m.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                }`}
-                dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content || '') }}
-              />
-            </div>
-          ))}
-
-          {(loading || finalizing) && (
-            <div className="flex justify-start">
-              <div className="bg-gray-100 text-gray-700 rounded-2xl rounded-bl-sm px-3 py-2 text-sm">
-                Thinking…
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <form
-        onSubmit={handleSubmit}
-        onKeyDown={(e) => {
-          const target = e.target as HTMLElement
-          const isTextArea = target && target.tagName === 'TEXTAREA'
-          if (!isTextArea && e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            if (!loading) void sendCurrentInput()
-          }
-        }}
-        className="mt-4 flex items-end gap-3"
-      >
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={() => setIsComposing(true)}
-          onCompositionEnd={() => setIsComposing(false)}
-          placeholder="Type your message… (Enter to send, Shift+Enter for newline)"
-          className="flex-1 rounded-lg border border-gray-300 p-3 min-h-[64px] shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          autoFocus
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="rounded-md bg-blue-600 text-white px-4 py-3 text-sm font-medium disabled:opacity-50"
-        >
-          {loading ? 'Sending…' : 'Send'}
-        </button>
-      </form>
+      <ChatPane
+        className="mt-4"
+        messages={messages.map((m, i) => ({ id: String(i), role: m.role as any, content: markdownToHtml(m.content) }))}
+        onSend={(v) => { setInput(v); setTimeout(() => { void sendCurrentInput(); }, 0); }}
+        isSending={loading}
+        inputValue={input}
+        onInputChange={setInput}
+        footer={
+          <span>
+            CMC Sober Coach provides behavior coaching. It is not a medical tool and does not provide therapy, diagnosis, or emergency services.
+          </span>
+        }
+        renderHTML
+      />
 
       <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-gray-500">
@@ -247,7 +185,6 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* Instructions modal */}
       {showInstructions && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
@@ -311,7 +248,6 @@ export default function OnboardingPage() {
 
 function markdownToHtml(md: string): string {
   const lines = (md || '').split(/\r?\n/)
-
   const out: string[] = []
   let inList = false
 
@@ -325,7 +261,6 @@ function markdownToHtml(md: string): string {
   for (let raw of lines) {
     const line = raw.trim()
 
-    // Headers
     let m
     if ((m = /^###\s+(.*)$/.exec(line))) {
       flushList()
@@ -343,7 +278,6 @@ function markdownToHtml(md: string): string {
       continue
     }
 
-    // List item
     if (/^[-*]\s+/.test(line)) {
       if (!inList) {
         inList = true
@@ -355,19 +289,15 @@ function markdownToHtml(md: string): string {
       flushList()
     }
 
-    // Blank line => paragraph break
     if (line === '') {
       out.push('<br/>')
       continue
     }
 
-    // Paragraph
     out.push(`<p>${escapeHtml(line)}</p>`)
   }
 
   flushList()
-
-  // Join and coalesce multiple <br/> into paragraph spacing
   return out.join('\n').replace(/(?:<br\/>\s*){2,}/g, '<br/>')
 }
 
