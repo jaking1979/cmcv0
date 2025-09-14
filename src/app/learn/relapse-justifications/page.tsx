@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 // ⬇️ Adjust these paths to match your project
 import AvatarTalkingHead from '../../../components/AvatarTalkingHead';
 import { MessageComposer } from '../../../components/chat/MessageComposer';
+import TopNav from '../../../components/TopNav';
 
 type PracticeKey = 'DELAY_15' | 'TEXT_SUPPORT' | 'GROUNDING' | 'PLAY_TAPE' | null;
 type Role = 'coach' | 'user' | 'system';
@@ -460,8 +461,9 @@ export default function Page() {
 
   return (
     <main className="flex h-dvh flex-col bg-white">
+      <TopNav />
       {/* Talking header (avatar + latest coach bubble + nav) */}
-      <section className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+      <section className="sticky top-12 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75">
         <div className="mx-auto max-w-3xl px-4 py-3">
           <div className="flex items-start gap-3">
             <AvatarTalkingHead speaking={isSpeaking} className="shrink-0" />
@@ -538,7 +540,7 @@ export default function Page() {
 
       {/* Crisis banner */}
       {crisisFlag && (
-        <div className="sticky top-[var(--top-offset,0px)] z-10 bg-red-50 px-4 py-2 text-sm text-red-800">
+        <div className="z-10 bg-red-50 px-4 py-2 text-sm text-red-800">
           Thank you so much for sharing that. It appears you’re asking me something beyond my ability to help. I’m a behavior
           coach, not a therapist. If you’re in danger or need immediate help, call 911 (or 988 for suicidal thoughts). If
           you’re looking for additional support, please connect with a licensed therapist. {/* Josh’s preferred copy */}
