@@ -577,7 +577,11 @@ export default function Page() {
 
       {/* Composer */}
       <div className="mt-auto mx-auto w-full max-w-3xl px-4 py-4">
-        <MessageComposer onSend={onSend} />
+        <MessageComposer
+          placeholder="Type your response…"
+          chips={[]}
+          onSend={onSend}
+        />
       </div>
     </main>
   );
