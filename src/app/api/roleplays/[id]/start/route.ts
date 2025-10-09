@@ -48,7 +48,7 @@ function checkRateLimit(ip: string): boolean {
 // POST /api/roleplays/[id]/start - Start a roleplay session
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Feature flag check
@@ -60,7 +60,7 @@ export async function POST(
     }
 
     // Rate limiting
-    const ip = request.ip || request.headers.get('X-Forwarded-For') || 'unknown'
+    const ip = request.headers.get('X-Forwarded-For') || request.headers.get('X-Real-IP') || 'unknown'
     if (!checkRateLimit(ip)) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -68,7 +68,7 @@ export async function POST(
       )
     }
 
-    const roleplayId = params.id
+    const { id: roleplayId } = await params
     if (!roleplayId) {
       return NextResponse.json(
         { error: 'Roleplay ID is required' },

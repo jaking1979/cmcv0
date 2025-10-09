@@ -48,6 +48,6 @@ export default function ChatHolderPage() {
           </ul>
         </div>
       </GlobalInstructionsModal>
-    </>
+    </div>
   )
 }

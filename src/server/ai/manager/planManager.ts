@@ -193,14 +193,14 @@ function parsePlanText(planText: string, sessionId: string): PersonalizedPlan {
   let rationale = ''
   
   // Extract summary
-  const summaryMatch = planText.match(/SUMMARY:\s*(.+?)(?=ACTIONS:|$)/s)
+  const summaryMatch = planText.match(/SUMMARY:\s*([\s\S]+?)(?=ACTIONS:|$)/)
   if (summaryMatch) {
     summary = summaryMatch[1].trim()
     rationale = summary // Use summary as rationale for now
   }
   
   // Extract actions
-  const actionsMatch = planText.match(/ACTIONS:\s*(.+)/s)
+  const actionsMatch = planText.match(/ACTIONS:\s*([\s\S]+)/)
   if (actionsMatch) {
     const actionsText = actionsMatch[1]
     const actionBlocks = actionsText.split(/\n\d+\./)
@@ -216,7 +216,7 @@ function parsePlanText(planText: string, sessionId: string): PersonalizedPlan {
         const difficulty = headerMatch[3].toLowerCase() as 'easy' | 'medium' | 'hard'
         
         // Extract description (everything after the header line)
-        const descMatch = block.match(/\n(.+)/s)
+        const descMatch = block.match(/\n([\s\S]+)/)
         const description = descMatch ? descMatch[1].trim() : ''
         
         actions.push({

@@ -171,6 +171,6 @@ export default function LearnIndexPage() {
           </p>
         </GlobalInstructionsModal>
       )}
-    </>
+    </div>
   )
 }

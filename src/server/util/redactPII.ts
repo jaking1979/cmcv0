@@ -134,11 +134,11 @@ export function containsPII(text: string): boolean {
 /**
  * Redact PII from an array of messages
  */
-export function redactMessages(messages: Array<{ role: string; content: string }>): Array<{ role: string; content: string }> {
+export function redactMessages<T extends { role: string; content: string }>(messages: T[]): T[] {
   return messages.map(msg => ({
     ...msg,
     content: redactPII(msg.content)
-  }))
+  })) as T[]
 }
 
 /**

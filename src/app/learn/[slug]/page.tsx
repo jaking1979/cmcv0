@@ -289,6 +289,6 @@ export default function LessonPage() {
           </ul>
         </div>
       </GlobalInstructionsModal>
-    </>
+    </div>
   )
 }
