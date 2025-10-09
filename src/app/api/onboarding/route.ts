@@ -1,13 +1,19 @@
 import 'server-only'
 import { NextRequest } from 'next/server'
+import { CRISIS_AND_SCOPE_GUARDRAILS, ONBOARDING_V1_PROMPT } from '@/server/ai/promptFragments'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
 if (!OPENAI_API_KEY) console.warn('[onboarding] Missing OPENAI_API_KEY')
 
 type Msg = { role: 'user'|'assistant'|'system'; content: string }
 
-// Onboarding intake: coach-like, efficient, roadmap-driven (not MI-first, not scripted)
-const SYSTEM_PROMPT = `
+// Feature flag check
+function isV1Enabled(): boolean {
+  return process.env.FEATURE_V1 === '1' && process.env.FEATURE_ONBOARDING_MAP === '1'
+}
+
+// V0 Onboarding intake: coach-like, efficient, roadmap-driven (not MI-first, not scripted)
+const SYSTEM_PROMPT_V0 = `
 You are CMC Sober Coach, an AI **behavior coach** (not a therapist). You do not diagnose.
 
 **Mode: INTAKE (Onboarding)**
@@ -32,32 +38,74 @@ Capture enough to infer (without naming tools to the user):
 **Do NOT** provide skills/advice/action menus during intake unless the server switches modes or the user explicitly asks for skills. If they ask for skills, acknowledge and ask **one** most relevant intake question to keep gathering essentials first.
 
 **Summary etiquette**
-- When you believe you have enough info for a first pass summary, **ask permission with a single yes/no** question only: "I can draft a brief intake summary from what we’ve discussed. Would you like to see it now?" Do not include the summary in the same turn.
+- When you believe you have enough info for a first pass summary, **ask permission with a single yes/no** question only: "I can draft a brief intake summary from what we've discussed. Would you like to see it now?" Do not include the summary in the same turn.
+
+**Targeted questioning mode**
+- When you receive a message indicating you should shift to targeted questioning (like "I have a good understanding..."), switch to asking specific, focused questions to complete the assessment.
+- Ask one targeted question at a time about specific assessment domains: self-compassion, coping strategies, confidence levels, life areas affected, etc.
+- Use scales (1-10), specific scenarios, or direct questions to gather precise information.
+- Keep the same warm, coach-like tone but be more direct and specific.
 
 **Crisis safety**
 - If imminent risk is expressed, respond only with the crisis message and stop.
 `.trim()
+
+// V1 Onboarding intake: practical-curiosity protocol for assessment mapping
+const SYSTEM_PROMPT_V1 = `
+${CRISIS_AND_SCOPE_GUARDRAILS}
+
+${ONBOARDING_V1_PROMPT}
+
+**Assessment Mapping Focus**
+Through natural conversation, gather information that helps us understand:
+- **Self-compassion patterns:** How they treat themselves during difficult times
+- **Change readiness:** Where they are in their journey (precontemplation to maintenance)
+- **Emotional wellbeing:** Current mood, energy, and distress levels
+- **Coping strategies:** What they currently do when stressed or triggered
+- **Substance patterns:** Current use, frequency, and impact (if relevant)
+- **Support systems:** Who and what helps them through challenges
+- **Life domains:** How their situation affects work, relationships, health, legal matters
+
+**Important:** Never ask assessment questions directly. Instead, use open-ended questions that naturally elicit this information through storytelling and reflection.
+
+**Summary etiquette**
+- When you have sufficient information (typically after 6-8 exchanges), ask permission: "I can draft a brief intake summary from what we've discussed. Would you like to see it now?"
+- Do not include the summary in the same turn.
+
+**Targeted questioning mode**
+- When you receive a message indicating you should shift to targeted questioning (like "I have a good understanding..."), switch to asking specific, focused questions to complete the assessment.
+- Ask one targeted question at a time about specific assessment domains: self-compassion, coping strategies, confidence levels, life areas affected, etc.
+- Use scales (1-10), specific scenarios, or direct questions to gather precise information.
+- Keep the same warm, coach-like tone but be more direct and specific.
+`.trim()
 const FINALIZE_PROMPT = `
 You are generating a rich, plain-language intake summary for the user from the FULL conversation transcript. Do not invent facts; ground every statement in what the user actually said or clearly implied.
 
-Format STRICTLY as GitHub-flavored Markdown and include ALL sections below:
+IMPORTANT: Do not include any HTML comments, tags, or markup. Output only clean Markdown text.
+
+Format STRICTLY as GitHub-flavored Markdown with proper spacing:
 
 # Intake Summary
-A clear, person-centered narrative (220–320 words) in plain language describing who they are in this context, what they’re navigating, their goals/concerns, relevant patterns (what/when/how often), triggers, consequences (health/relationships/work/legal/financial), supports, and motivation. No diagnoses. No clinical jargon.
+A clear, person-centered narrative (220–320 words) in plain language describing who they are in this context, what they're navigating, their goals/concerns, relevant patterns (what/when/how often), triggers, consequences (health/relationships/work/legal/financial), supports, and motivation. No diagnoses. No clinical jargon.
 
 ## What We Heard
-- 6–9 short bullets in the user’s own phrasing where possible.
-- Each bullet should capture a distinct fact or theme from the transcript.
+- 6–9 short bullets in the user's own phrasing where possible
+- Each bullet should capture a distinct fact or theme from the transcript
 
 ## Strengths & Supports
-- 3–5 bullets that reflect values, efforts, relationships, and resources the user mentioned.
+- 3–5 bullets that reflect values, efforts, relationships, and resources the user mentioned
 
-## Inferred Scales
-**Change Readiness (URICA, plain language):** Name the likely stage(s) and give a 1–2 sentence rationale tied to what the user said.
-**Areas to Watch (ASI-style, plain language):**
-- Domain — one-line observation tied to the transcript.
-- Domain — one-line observation.
-- Domain — one-line observation.
+## Assessment Insights
+**Self-Compassion Patterns:** How they treat themselves during difficult times (based on conversation)
+**Change Readiness (URICA):** Name the likely stage and give a 1–2 sentence rationale tied to what the user said
+**Emotional Wellbeing (K10/WHO-5):** Current mood, energy, and distress levels observed
+**Coping Strategies (DBT-WCCL):** What they currently do when stressed or triggered
+**Coping Self-Efficacy:** Their confidence in handling difficult situations without substances
+**Substance Use Patterns (ASSIST):** Risk level and patterns observed from conversation
+**Areas to Watch (ASI domains):**
+- Relationships — one-line observation tied to the transcript
+- Work/Employment — one-line observation tied to the transcript
+- Family/Social — one-line observation tied to the transcript
 
 ## Gentle Caveat
 This is a behavior-coaching intake summary, not a medical or diagnostic assessment.
@@ -65,6 +113,14 @@ This is a behavior-coaching intake summary, not a medical or diagnostic assessme
 
 const OFFER_MARK = '<!--OFFER_SUMMARY-->'
 const DONE_MARK  = '<!--SUMMARY_DONE-->'
+
+// Helper to strip HTML comments from user-visible text
+function stripHtmlComments(text: string): string {
+  return text
+    .replace(/<!--[^>]*-->/g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .trim()
+}
 
 /* -------- heuristics (domains) -------- */
 function hasGoal(text: string) {
@@ -113,9 +169,15 @@ function coverageScore(history: Msg[], latest: string) {
 
 function shouldOfferSummaryNow(history: Msg[], latest: string) {
   const userTurns = history.filter(m => m.role === 'user').length
-  if (userTurns < 6) return false                // was 4
+  if (userTurns < 8) return false                // Increased from 6
   const score = coverageScore(history, latest)
-  return score >= 4                               // was 3
+  
+  // V1: Require higher confidence threshold
+  if (isV1Enabled()) {
+    return score >= 5 && userTurns >= 10  // Even more stringent for v1
+  }
+  
+  return score >= 5                               // Increased from 4
 }
 
 function wantsFinish(text: string) {
@@ -243,7 +305,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const base: Msg[] = [{ role: 'system', content: SYSTEM_PROMPT }]
+    // Choose system prompt based on feature flags
+    const systemPrompt = isV1Enabled() ? SYSTEM_PROMPT_V1 : SYSTEM_PROMPT_V0
+    const base: Msg[] = [{ role: 'system', content: systemPrompt }]
     const prior = (history || []).filter(m => m.role === 'user' || m.role === 'assistant')
     const transcriptWithCurrent = prior.concat({ role: 'user', content: input || '' })
 
@@ -258,9 +322,9 @@ export async function POST(req: NextRequest) {
         }
       ]
       const summary = await callOpenAI(messages, 1500)
-      const withMark = (summary || '').trim() + `\n\n${DONE_MARK}`
-      return new Response(withMark, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      const cleanSummary = stripHtmlComments(summary || '')
+      return new Response(cleanSummary.trim(), {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Summary-Complete': '1' },
       })
     }
 
@@ -276,9 +340,9 @@ export async function POST(req: NextRequest) {
         },
       ]
       let text = await callOpenAI(messages, 1500)
-      text = (text || '').trim() + `\n\n${DONE_MARK}`
-      return new Response(text, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      const cleanText = stripHtmlComments(text || '')
+      return new Response(cleanText.trim(), {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Summary-Complete': '1' },
       })
     }
 
@@ -301,8 +365,9 @@ export async function POST(req: NextRequest) {
       !hasOfferedSummaryRecently(prior) &&
       !hasRecentlySummarized(prior)
     ) {
-      const permission = `I can draft a brief intake summary from what we’ve discussed. Would you like to see it now? ${OFFER_MARK}`
-      return new Response(permission, {
+      const permission = `I can draft a brief intake summary from what we've discussed. Would you like to see it now? ${OFFER_MARK}`
+      const cleanPermission = stripHtmlComments(permission)
+      return new Response(cleanPermission, {
         headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
       })
     }
@@ -319,7 +384,10 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    return new Response(text, {
+    // Strip HTML comments from user-visible text
+    const cleanText = stripHtmlComments(text)
+
+    return new Response(cleanText, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
     })
   } catch (e) {

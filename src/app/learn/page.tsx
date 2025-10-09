@@ -73,48 +73,87 @@ export default function LearnIndexPage() {
   });
 
   return (
-    <>
+    <div className="min-h-screen bg-white flex flex-col">
       <TopNav title="📚 Learn Something" onShowInstructions={() => setShowInstructions(true)} />
-      <main className="min-h-screen p-6 max-w-3xl mx-auto bg-white">
-        <p className="text-sm text-gray-600 mb-6">{completed.length} / {Object.keys(lessons).length} lessons completed</p>
-        <input
-          type="text"
-          placeholder="Search lessons..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full mb-4 p-2 border border-gray-300 rounded-md"
-        />
-        <select
-          value={selectedTag}
-          onChange={(e) => setSelectedTag(e.target.value)}
-          className="mb-6 p-2 border border-gray-300 rounded-md"
-          aria-label="Filter lessons by tag"
-        >
-          {tags.map(tag => (
-            <option key={tag} value={tag}>{tag}</option>
-          ))}
-        </select>
-        <ul className="space-y-6">
-          {filteredLessons.map(([slug, lesson]) => {
-            const isDone = completed.includes(slug as string)
-            return (
-              <li key={slug} className="border border-gray-300 p-6 rounded-lg shadow-sm hover:shadow-md transition flex flex-col gap-2">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Link href={`/learn/${slug}`} className="text-xl font-semibold text-blue-700 hover:underline">
-                    {lesson.title}
-                  </Link>
-                  <span className="text-xs font-medium bg-blue-100 text-blue-800 rounded-full px-3 py-1">
-                    {lesson.tag}
-                  </span>
-                  {isDone && (
-                    <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">✓ Completed</span>
-                  )}
-                </div>
-                <p className="text-gray-700">{lesson.teaser}</p>
-              </li>
-            )
-          })}
-        </ul>
+      
+      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0">
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-4">{completed.length} / {Object.keys(lessons).length} lessons completed</p>
+          
+          <div className="space-y-3">
+            <input
+              type="text"
+              placeholder="Search lessons..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="
+                w-full p-3 border border-gray-300 rounded-lg shadow-sm
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                min-h-[44px] text-base
+              "
+            />
+            
+            <select
+              value={selectedTag}
+              onChange={(e) => setSelectedTag(e.target.value)}
+              className="
+                w-full p-3 border border-gray-300 rounded-lg shadow-sm
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                min-h-[44px] text-base bg-white
+              "
+              aria-label="Filter lessons by tag"
+            >
+              {tags.map(tag => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          <ul className="space-y-4 pb-4">
+            {filteredLessons.map(([slug, lesson]) => {
+              const isDone = completed.includes(slug as string)
+              return (
+                <li key={slug} className="
+                  border border-gray-200 p-4 rounded-lg shadow-sm 
+                  hover:shadow-md hover:border-gray-300 
+                  transition-all duration-200
+                  bg-white
+                ">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <Link 
+                        href={`/learn/${slug}`} 
+                        className="
+                          text-lg sm:text-xl font-semibold text-blue-700 
+                          hover:text-blue-800 hover:underline
+                          leading-tight flex-1 min-w-0
+                          text-wrap-anywhere
+                        "
+                      >
+                        {lesson.title}
+                      </Link>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-xs font-medium bg-blue-100 text-blue-800 rounded-full px-2 py-1">
+                          {lesson.tag}
+                        </span>
+                        {isDone && (
+                          <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-2 py-1">
+                            ✓ Completed
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-gray-700 text-sm sm:text-base leading-relaxed text-wrap-anywhere">
+                      {lesson.teaser}
+                    </p>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       </main>
       {showInstructions && (
         <GlobalInstructionsModal open={true}

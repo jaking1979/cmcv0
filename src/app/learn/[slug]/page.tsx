@@ -214,31 +214,58 @@ export default function LessonPage() {
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-white flex flex-col">
       <TopNav title="📚 Learn Something" onShowInstructions={() => setShowInstr(true)} />
 
-      <main className="min-h-screen bg-white px-4 sm:px-6 pb-24 pt-4 sm:pt-6 max-w-3xl mx-auto">
-        <h1 className="text-2xl font-semibold mb-4 text-gray-800">{lesson.title}</h1>
-        <section className="mb-6 text-gray-700">{lesson.content}</section>
+      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0">
+        <div className="flex-1 overflow-y-auto pb-20">
+          <h1 className="text-xl sm:text-2xl font-semibold mb-4 text-gray-800 text-wrap-anywhere">
+            {lesson.title}
+          </h1>
+          
+          <section className="mb-6 text-gray-700 text-sm sm:text-base leading-relaxed">
+            <div className="prose prose-sm sm:prose max-w-none text-wrap-anywhere">
+              {lesson.content}
+            </div>
+          </section>
 
-        <section className="bg-blue-50 p-4 rounded-lg mb-6">
-          <p className="font-medium text-blue-800 mb-2">🧠 Practice:</p>
-          <p className="text-blue-900">{lesson.practice}</p>
-        </section>
+          <section className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100">
+            <p className="font-medium text-blue-800 mb-2 text-sm sm:text-base">🧠 Practice:</p>
+            <p className="text-blue-900 text-sm sm:text-base leading-relaxed text-wrap-anywhere">
+              {lesson.practice}
+            </p>
+          </section>
 
-        <section className="bg-gray-100 p-4 rounded-lg">
-          <p className="font-medium text-gray-800 mb-2">💬 Reflection:</p>
-          <p className="text-gray-700">{lesson.reflect}</p>
-        </section>
+          <section className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <p className="font-medium text-gray-800 mb-2 text-sm sm:text-base">💬 Reflection:</p>
+            <p className="text-gray-700 text-sm sm:text-base leading-relaxed text-wrap-anywhere">
+              {lesson.reflect}
+            </p>
+          </section>
+        </div>
 
-        <div className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur border-t p-4">
+        {/* Fixed bottom action bar */}
+        <div className="
+          fixed inset-x-0 bottom-0 
+          bg-white/95 backdrop-blur-sm border-t border-gray-200 
+          p-3 sm:p-4
+          pb-safe-area-inset-bottom
+        ">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-            <span className="text-sm text-gray-600">
+            <span className="text-xs sm:text-sm text-gray-600 flex-1 min-w-0 text-wrap-anywhere">
               {isCompleted ? 'Marked complete. Nice work! ✅' : 'Mark this lesson complete to track progress.'}
             </span>
             <button
               onClick={toggleComplete}
-              className={`px-4 py-2 rounded-lg font-semibold shadow transition ${isCompleted ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              className={`
+                px-4 py-3 rounded-lg font-semibold shadow-sm transition-colors
+                min-h-[44px] min-w-[120px] flex-shrink-0
+                text-sm sm:text-base
+                ${isCompleted 
+                  ? 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                }
+              `}
             >
               {isCompleted ? 'Completed ✓' : 'Mark Complete'}
             </button>

@@ -23,37 +23,58 @@ export default function TopNav({
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-gray-200 flex-shrink-0">
+        <div className="max-w-3xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <button
               type="button"
               onClick={() => setOpen(true)}
               aria-label="Open menu"
               aria-expanded={open}
-              className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+              className="
+                inline-flex items-center justify-center
+                rounded-md border border-gray-300
+                min-h-[44px] min-w-[44px] px-3
+                text-sm hover:bg-gray-50 active:bg-gray-100
+                transition-colors
+              "
             >
-              ☰
+              <span className="text-lg">☰</span>
             </button>
-            <h1 className="text-lg font-semibold truncate">{title}</h1>
+            <h1 className="text-base sm:text-lg font-semibold truncate text-gray-900">
+              {title}
+            </h1>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <Link
               href="/"
-              className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+              className="
+                inline-flex items-center justify-center
+                rounded-md border border-gray-300
+                min-h-[44px] px-3 sm:px-4
+                text-sm hover:bg-gray-50 active:bg-gray-100
+                transition-colors
+              "
             >
-              Home
+              <span className="hidden sm:inline">Home</span>
+              <span className="sm:hidden">🏠</span>
             </Link>
             {onShowInstructions && (
               <button
                 type="button"
                 onClick={onShowInstructions}
-                className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+                className="
+                  inline-flex items-center justify-center
+                  rounded-md border border-gray-300
+                  min-h-[44px] min-w-[44px] px-3
+                  text-sm hover:bg-gray-50 active:bg-gray-100
+                  transition-colors
+                "
                 aria-label="Show instructions"
                 title="Instructions"
               >
-                ?
+                <span className="text-lg">?</span>
               </button>
             )}
           </div>
@@ -69,78 +90,120 @@ export default function TopNav({
           />
 
           {/* slide-over drawer */}
-          <aside className="fixed top-0 left-0 z-50 h-full w-72 bg-white shadow-xl border-r border-gray-200 flex flex-col">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <span className="font-semibold">CMC Sober Coach</span>
+          <aside className="fixed top-0 left-0 z-50 h-full w-80 max-w-[85vw] bg-white shadow-xl border-r border-gray-200 flex flex-col">
+            <div className="px-4 py-4 border-b flex items-center justify-between">
+              <span className="font-semibold text-gray-900">CMC Sober Coach</span>
               <button
-                className="rounded-md border px-2 py-1 text-sm hover:bg-gray-50"
+                className="
+                  rounded-md border border-gray-300
+                  min-h-[44px] min-w-[44px] px-3
+                  text-sm hover:bg-gray-50 active:bg-gray-100
+                  transition-colors
+                "
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
               >
-                ✕
+                <span className="text-lg">✕</span>
               </button>
             </div>
 
-            <nav className="p-2 flex-1">
-              <ul className="space-y-1">
+            <nav className="p-3 flex-1 overflow-y-auto">
+              <ul className="space-y-2">
                 <li>
                   <Link
                     href="/"
-                    className="block rounded-md px-3 py-2 hover:bg-gray-50"
+                    className="
+                      flex items-center gap-3 rounded-lg px-4 py-3
+                      hover:bg-gray-50 active:bg-gray-100
+                      transition-colors min-h-[44px]
+                      text-gray-900 font-medium
+                    "
                     onClick={() => setOpen(false)}
                   >
-                    🏠 Home
+                    <span className="text-xl">🏠</span>
+                    <span>Home</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/learn"
-                    className="block rounded-md px-3 py-2 hover:bg-gray-50"
+                    className="
+                      flex items-center gap-3 rounded-lg px-4 py-3
+                      hover:bg-gray-50 active:bg-gray-100
+                      transition-colors min-h-[44px]
+                      text-gray-900 font-medium
+                    "
                     onClick={() => setOpen(false)}
                   >
-                    📚 Learn
+                    <span className="text-xl">📚</span>
+                    <span>Learn</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/advice"
-                    className="block rounded-md px-3 py-2 hover:bg-gray-50"
+                    className="
+                      flex items-center gap-3 rounded-lg px-4 py-3
+                      hover:bg-gray-50 active:bg-gray-100
+                      transition-colors min-h-[44px]
+                      text-gray-900 font-medium
+                    "
                     onClick={() => setOpen(false)}
                   >
-                    💬 Advice
+                    <span className="text-xl">💬</span>
+                    <span>Advice</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/onboarding"
-                    className="block rounded-md px-3 py-2 hover:bg-gray-50"
+                    className="
+                      flex items-center gap-3 rounded-lg px-4 py-3
+                      hover:bg-gray-50 active:bg-gray-100
+                      transition-colors min-h-[44px]
+                      text-gray-900 font-medium
+                    "
                     onClick={() => setOpen(false)}
                   >
-                    🧾 Onboarding (demo)
+                    <span className="text-xl">🧾</span>
+                    <span>Onboarding <span className="text-sm text-gray-500">(demo)</span></span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/crisis"
-                    className="block rounded-md px-3 py-2 hover:bg-gray-50"
+                    className="
+                      flex items-center gap-3 rounded-lg px-4 py-3
+                      hover:bg-gray-50 active:bg-gray-100
+                      transition-colors min-h-[44px]
+                      text-gray-900 font-medium
+                    "
                     onClick={() => setOpen(false)}
                   >
-                    🚨 Crisis
+                    <span className="text-xl">🚨</span>
+                    <span>Crisis</span>
                   </Link>
                 </li>
               </ul>
             </nav>
 
             {onShowInstructions && (
-              <div className="p-3 border-t">
+              <div className="p-4 border-t">
                 <button
-                  className="w-full rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
+                  className="
+                    w-full flex items-center justify-center gap-2
+                    rounded-lg border border-gray-300 px-4 py-3
+                    text-sm font-medium hover:bg-gray-50 active:bg-gray-100
+                    transition-colors min-h-[44px]
+                    text-gray-900
+                  "
                   onClick={() => {
                     setOpen(false)
                     onShowInstructions()
                   }}
                 >
-                  📖 Instructions
+                  <span className="text-lg">📖</span>
+                  <span>Instructions</span>
                 </button>
               </div>
             )}

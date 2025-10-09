@@ -22,51 +22,104 @@ export default function Home() {
   // }, [])
 
   return (
-    <>
+    <div className="min-h-screen bg-white flex flex-col">
       {/* Sticky global nav (hamburger menu lives inside TopNav) */}
       <TopNav title="🏠 Home" />
 
-      <main className="min-h-screen bg-gray-50 px-4">
-        <div className="max-w-3xl mx-auto py-8 flex flex-col items-center">
-          <Image
-            src={logo}
-            alt="CMC Sober Coach"
-            width={140}
-            height={140}
-            className="mb-4 rounded"
-            priority
-          />
+      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0">
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="w-full max-w-md flex flex-col items-center">
+            <Image
+              src={logo}
+              alt="CMC Sober Coach"
+              width={120}
+              height={120}
+              className="mb-4 rounded"
+              priority
+            />
 
-          <h1 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-            Welcome to CMC Sober Coach
-          </h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-6 text-center text-wrap-anywhere">
+              Welcome to CMC Sober Coach
+            </h1>
 
-          {/* Big primary button for Onboarding */}
-          <Link
-            href="/onboarding"
-            className="w-full sm:w-auto inline-flex items-center justify-center rounded-md bg-blue-600 px-6 py-3 text-white text-lg font-medium shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mb-6"
-          >
-            🚀 Start Onboarding
-          </Link>
+            {/* Big primary button for Onboarding */}
+            <Link
+              href="/onboarding"
+              className="
+                w-full inline-flex items-center justify-center 
+                rounded-lg bg-blue-600 px-6 py-3 
+                text-white text-base sm:text-lg font-medium 
+                shadow-sm hover:bg-blue-700 active:bg-blue-800
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 
+                mb-6 min-h-[44px] transition-colors
+              "
+            >
+              🚀 Start Onboarding
+            </Link>
 
-          {/* Secondary actions */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-            <Link href="/learn" className="button-primary">📚 Learn Something</Link>
-            <Link href="/advice" className="button-primary">💡 Get Advice</Link>
-            <Link href="/chat" className="button-primary">💬 Just Chat</Link>
-            <Link href="/crisis" className="button-primary">🚨 Crisis Support</Link>
+            {/* Secondary actions */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mb-6">
+              <Link 
+                href="/learn" 
+                className="
+                  bg-gray-100 text-gray-800 font-semibold py-3 px-4 rounded-lg 
+                  shadow-sm hover:bg-gray-200 active:bg-gray-300
+                  text-center transition-colors min-h-[44px]
+                  flex items-center justify-center
+                "
+              >
+                📚 Learn Something
+              </Link>
+              <Link 
+                href="/advice" 
+                className="
+                  bg-gray-100 text-gray-800 font-semibold py-3 px-4 rounded-lg 
+                  shadow-sm hover:bg-gray-200 active:bg-gray-300
+                  text-center transition-colors min-h-[44px]
+                  flex items-center justify-center
+                "
+              >
+                💡 Get Advice
+              </Link>
+              <Link 
+                href="/chat" 
+                className="
+                  bg-gray-100 text-gray-800 font-semibold py-3 px-4 rounded-lg 
+                  shadow-sm hover:bg-gray-200 active:bg-gray-300
+                  text-center transition-colors min-h-[44px]
+                  flex items-center justify-center
+                "
+              >
+                💬 Just Chat
+              </Link>
+              <Link 
+                href="/crisis" 
+                className="
+                  bg-red-100 text-red-800 font-semibold py-3 px-4 rounded-lg 
+                  shadow-sm hover:bg-red-200 active:bg-red-300
+                  text-center transition-colors min-h-[44px]
+                  flex items-center justify-center
+                "
+              >
+                🚨 Crisis Support
+              </Link>
+            </div>
+
+            {/* Inline "Instructions" trigger */}
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="
+                inline-flex items-center rounded-lg border border-gray-300 
+                px-4 py-2 text-sm hover:bg-gray-50 active:bg-gray-100
+                transition-colors min-h-[44px]
+              "
+              aria-label="Show instructions"
+              title="Instructions"
+            >
+              ☰ Instructions
+            </button>
           </div>
-
-          {/* Inline “Instructions” trigger */}
-          <button
-            type="button"
-            onClick={() => setShowModal(true)}
-            className="mt-6 inline-flex items-center rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
-            aria-label="Show instructions"
-            title="Instructions"
-          >
-            ☰ Instructions
-          </button>
         </div>
       </main>
 

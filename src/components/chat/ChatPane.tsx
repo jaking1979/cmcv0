@@ -29,18 +29,29 @@ export function ChatPane({
   renderHTML = false,
 }: ChatPaneProps) {
   return (
-    <div className={["rounded-lg border border-gray-200 bg-white p-4", className].filter(Boolean).join(' ')}>
-      <div className="min-h-[280px] max-h-[65vh] overflow-y-auto" aria-live="polite">
+    <div className={[
+      "flex flex-col h-full",
+      "rounded-lg border border-gray-200 bg-white",
+      "p-3 sm:p-4",
+      className
+    ].filter(Boolean).join(' ')}>
+      <div className="flex-1 min-h-0 overflow-y-auto mb-4" aria-live="polite">
         <MessageList messages={messages} renderHTML={renderHTML} />
       </div>
-      <MessageComposer
-        value={inputValue}
-        onChange={onInputChange}
-        onSend={onSend}
-        disabled={disabled}
-        isSending={isSending}
-      />
-      {footer ? <div className="mt-2 text-xs text-gray-500">{footer}</div> : null}
+      <div className="flex-shrink-0">
+        <MessageComposer
+          value={inputValue}
+          onChange={onInputChange}
+          onSend={onSend}
+          disabled={disabled}
+          isSending={isSending}
+        />
+        {footer && (
+          <div className="mt-3 text-xs text-gray-500 leading-relaxed">
+            {footer}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

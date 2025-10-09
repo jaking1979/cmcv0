@@ -13,12 +13,102 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Mobile-first responsive design */
+html {
+  /* Prevent zoom on input focus on iOS */
+  -webkit-text-size-adjust: 100%;
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  /* Prevent horizontal scroll */
+  overflow-x: hidden;
+  /* Support for safe area insets (iPhone notch, etc.) */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+
+/* Mobile keyboard handling */
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/* Safe area utilities */
+.pb-safe-area-inset-bottom {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe-area-inset-top {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+/* Button styles */
 .button-primary {
   @apply bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow hover:bg-blue-700 text-center transition;
   display: block;
+  /* Ensure minimum touch target size */
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Mobile-optimized form inputs */
+input, textarea, select {
+  /* Prevent zoom on iOS */
+  font-size: 16px;
+  /* Better touch targets */
+  min-height: 44px;
+}
+
+/* Chat-specific mobile optimizations */
+.chat-container {
+  /* Account for mobile keyboard */
+  height: calc(100vh - env(keyboard-inset-height, 0px));
+  height: calc(100dvh - env(keyboard-inset-height, 0px));
+}
+
+/* Ensure chat messages have their own scroll area */
+.chat-messages {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Sticky assessment meter positioning */
+.assessment-sticky {
+  position: sticky;
+  top: 4rem; /* Account for TopNav height */
+  z-index: 20;
+}
+
+/* Prevent text overflow */
+.text-wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Mobile-friendly scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+/* Focus styles for accessibility */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }

@@ -1,0 +1,5 @@
+[
+  { "id": "skeptical-newcomer-chaos", "title": "Skeptical newcomer, chaos and anxiety buzzing", "path": "/roleplays/skeptical-newcomer-chaos.yaml", "themes": ["skepticism","chaos","anxiety"] },
+  { "id": "college-student-peer-pressure", "title": "College student, party drug use, respect for Ben", "path": "/roleplays/college-student-peer-pressure.yaml", "themes": ["peer pressure","promises","regret"] },
+  { "id": "after-work-craving", "title": "Stressful day, craving spiral, cooking as distraction", "path": "/roleplays/after-work-craving.yaml", "themes": ["work stress","craving","distraction"] }
+]

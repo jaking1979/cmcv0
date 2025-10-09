@@ -48,7 +48,7 @@ export function MessageComposer({
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); if (!disabled && !isSending) doSend(); }}
-      className={["mt-4 flex items-end gap-3", className].filter(Boolean).join(' ')}
+      className={["flex items-end gap-2 sm:gap-3", className].filter(Boolean).join(' ')}
     >
       <textarea
         ref={ref}
@@ -58,15 +58,43 @@ export function MessageComposer({
         onCompositionStart={() => setIsComposing(true)}
         onCompositionEnd={() => setIsComposing(false)}
         placeholder="Type your message… (Enter to send, Shift+Enter for newline)"
-        className="flex-1 rounded-lg border border-gray-300 p-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        autoFocus
+        className="
+          flex-1 rounded-lg border border-gray-300 p-3 shadow-sm 
+          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+          resize-none min-h-[44px] max-h-32
+          text-wrap-anywhere
+        "
+        rows={1}
+        style={{
+          fieldSizing: 'content'
+        } as any}
       />
       <button
         type="submit"
         disabled={disabled || isSending || !(value !== undefined ? value.trim() : inner.trim())}
-        className="rounded-md bg-blue-600 text-white px-4 py-3 text-sm font-medium disabled:opacity-50"
+        className="
+          rounded-md bg-blue-600 text-white 
+          px-3 py-3 sm:px-4 
+          text-sm font-medium 
+          disabled:opacity-50 disabled:cursor-not-allowed
+          min-h-[44px] min-w-[44px]
+          flex items-center justify-center
+          hover:bg-blue-700 active:bg-blue-800
+          transition-colors
+        "
+        aria-label={isSending ? 'Sending message' : 'Send message'}
       >
-        {isSending ? 'Sending…' : 'Send'}
+        {isSending ? (
+          <span className="flex items-center gap-1">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span className="hidden sm:inline">Sending…</span>
+          </span>
+        ) : (
+          <span>Send</span>
+        )}
       </button>
     </form>
   );
