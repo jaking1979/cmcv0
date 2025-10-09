@@ -6,9 +6,11 @@ import { useEffect, useState } from 'react'
 export default function TopNav({
   title,
   onShowInstructions,
+  badge,
 }: {
   title: string
   onShowInstructions?: () => void
+  badge?: string
 }) {
   const [open, setOpen] = useState(false)
 
@@ -41,8 +43,13 @@ export default function TopNav({
             >
               <span className="text-lg">☰</span>
             </button>
-            <h1 className="text-base sm:text-lg font-semibold truncate text-gray-900">
+            <h1 className="text-base sm:text-lg font-semibold truncate text-gray-900 flex items-center gap-2">
               {title}
+              {badge && (
+                <span className="text-xs font-medium bg-blue-600 text-white px-2 py-1 rounded-md flex-shrink-0">
+                  {badge}
+                </span>
+              )}
             </h1>
           </div>
 

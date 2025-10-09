@@ -320,7 +320,11 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <TopNav title="🧭 Onboarding Chat" onShowInstructions={() => setShowInstructions(true)} />
+      <TopNav 
+        title="🧭 Onboarding Chat" 
+        onShowInstructions={() => setShowInstructions(true)}
+        badge={isV1Enabled ? "v1" : undefined}
+      />
       
       {/* V1: Sticky Assessment Progress Meter */}
       {isV1Enabled && assessmentProfile && (
