@@ -64,9 +64,11 @@ export default function LearnIndexPage() {
   }
 
   const filteredLessons = lessons.filter(lesson => {
-    const matchesSearch = lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         lesson.description.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesTag = selectedTag === 'All' || lesson.tags.includes(selectedTag)
+    const title = lesson.title || ''
+    const description = lesson.description || ''
+    const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         description.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesTag = selectedTag === 'All' || (lesson.tags && lesson.tags.includes(selectedTag))
     return matchesSearch && matchesTag
   })
 

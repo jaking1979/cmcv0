@@ -44,8 +44,8 @@ export default function OnboardingPage() {
   const [isComposing, setIsComposing] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
   
-  // V1 features
-  const [isV1Enabled, setIsV1Enabled] = useState(false)
+  // V1 features - NOW DEFAULT
+  const [isV1Enabled, setIsV1Enabled] = useState(true) // V1 is now the default
   const [assessmentProfile, setAssessmentProfile] = useState<AssessmentProfile | null>(null)
   const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [hasTriggeredTargetedMode, setHasTriggeredTargetedMode] = useState(false)
@@ -53,13 +53,14 @@ export default function OnboardingPage() {
   useEffect(() => {
     setShowInstructions(true)
     
-    // Check for V1 feature flags (client-side detection)
+    // V1 is now default, but allow disabling with ?v1=0
     const urlParams = new URLSearchParams(window.location.search)
     const v1Param = urlParams.get('v1')
-    if (v1Param === '1') {
-      setIsV1Enabled(true)
-      
-      // Initialize empty assessment profile for progress tracking
+    if (v1Param === '0') {
+      setIsV1Enabled(false)
+      setAssessmentProfile(null)
+    } else {
+      // V1 enabled by default - initialize assessment profile
       const initialProfile: AssessmentProfile = {
         sessionId: `session_${Date.now()}`,
         timestamp: Date.now(),

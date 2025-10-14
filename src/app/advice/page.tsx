@@ -238,8 +238,8 @@ export default function AdvicePage() {
 
   const [showInstr, setShowInstr] = useState(false)
 
-  // V1 features
-  const [isV1Enabled, setIsV1Enabled] = useState(false)
+  // V1 features - NOW DEFAULT
+  const [isV1Enabled, setIsV1Enabled] = useState(true) // V1 is now the default
   const [isRoleplayEnabled, setIsRoleplayEnabled] = useState(false)
   const [roleplayMode, setRoleplayMode] = useState(false)
   const [availableRoleplays, setAvailableRoleplays] = useState<RoleplayMeta[]>([])
@@ -259,11 +259,11 @@ export default function AdvicePage() {
 
   // V1: Check feature flags and load roleplays
   useEffect(() => {
-    // Check for V1 feature flags (client-side detection)
+    // V1 is now default, but allow disabling with ?v1=0
     const urlParams = new URLSearchParams(window.location.search)
     const v1Param = urlParams.get('v1')
-    if (v1Param === '1') {
-      setIsV1Enabled(true)
+    if (v1Param === '0') {
+      setIsV1Enabled(false)
     }
 
     // Check for roleplay feature
