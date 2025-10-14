@@ -13,16 +13,16 @@ interface PlanCardProps {
 export default function PlanCard({ plan, onAccept, onDismiss, isPinned }: PlanCardProps) {
   const [expanded, setExpanded] = useState(true)
 
-  const getDifficultyColor = (difficulty: string) => {
+  const getDifficultyStyle = (difficulty: string) => {
     switch (difficulty) {
       case 'easy':
-        return 'bg-green-100 text-green-800'
+        return { background: 'linear-gradient(135deg, var(--cmc-teal-200) 0%, var(--cmc-teal-300) 100%)', color: 'var(--cmc-teal-700)' }
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800'
+        return { background: 'linear-gradient(135deg, #FFF4D4 0%, #FFE8A3 100%)', color: '#92400E' }
       case 'hard':
-        return 'bg-orange-100 text-orange-800'
+        return { background: 'linear-gradient(135deg, #FFE5D4 0%, #FFD4A3 100%)', color: '#C2410C' }
       default:
-        return 'bg-gray-100 text-gray-800'
+        return { background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }
     }
   }
 
@@ -40,31 +40,31 @@ export default function PlanCard({ plan, onAccept, onDismiss, isPinned }: PlanCa
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg shadow-sm bg-white overflow-hidden">
+    <div className="glass-medium shadow-medium border border-gray-200/30 overflow-hidden slide-up" style={{ borderRadius: 'var(--radius-2xl)' }}>
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b border-blue-100">
+      <div className="p-5 border-b border-gray-200/30" style={{ background: 'linear-gradient(135deg, var(--cmc-teal-200) 0%, var(--lavender-300) 100%)' }}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
               Your Personalized Action Plan
             </h3>
-            <p className="text-sm text-gray-700 leading-relaxed">
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               {plan.summary}
             </p>
             {plan.rationale && (
-              <p className="text-xs text-gray-600 mt-2 italic">
+              <p className="text-xs mt-2 italic" style={{ color: 'var(--text-tertiary)' }}>
                 {plan.rationale}
               </p>
             )}
           </div>
           {isPinned && (
-            <span className="flex-shrink-0 text-xs font-medium bg-blue-600 text-white rounded-full px-2 py-1">
+            <span className="flex-shrink-0 text-xs font-semibold bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C] text-white px-2.5 py-1 shadow-soft glow-pulse-teal" style={{ borderRadius: 'var(--radius-md)' }}>
               📌 Pinned
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2 mt-3 text-xs text-gray-600">
+        <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
           <span>Confidence: {Math.round((plan.confidence || 0) * 100)}%</span>
           <span>•</span>
           <span>{new Date(plan.timestamp).toLocaleDateString()}</span>
@@ -80,27 +80,28 @@ export default function PlanCard({ plan, onAccept, onDismiss, isPinned }: PlanCa
       {/* Actions */}
       {expanded && plan.actions && plan.actions.length > 0 && (
         <div className="p-4">
-          <h4 className="text-sm font-semibold text-gray-900 mb-3">Suggested Actions:</h4>
+          <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Suggested Actions:</h4>
           <div className="space-y-3">
-            {plan.actions.map((action) => (
+            {plan.actions.map((action, idx) => (
               <div
                 key={action.id}
-                className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition-colors"
+                className={`glass-light border border-gray-200/30 p-4 hover:glass-medium hover:glow-teal transition-all duration-300 stagger-${Math.min(idx + 1, 5)}`}
+                style={{ borderRadius: 'var(--radius-lg)' }}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <h5 className="text-sm font-medium text-gray-900 flex-1">
+                  <h5 className="text-sm font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
                     {action.title.replace(/\*\*/g, '')}
                   </h5>
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="text-xs">
                       {getCategoryLabel(action.category)}
                     </span>
-                    <span className={`text-xs rounded-full px-2 py-0.5 ${getDifficultyColor(action.difficulty)}`}>
+                    <span className="text-xs px-2 py-0.5 font-semibold shadow-soft" style={{ ...getDifficultyStyle(action.difficulty), borderRadius: 'var(--radius-sm)' }}>
                       {action.difficulty}
                     </span>
                   </div>
                 </div>
-                <p className="text-sm text-gray-700 leading-relaxed">
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                   {action.description}
                 </p>
               </div>
@@ -110,10 +111,11 @@ export default function PlanCard({ plan, onAccept, onDismiss, isPinned }: PlanCa
       )}
 
       {/* Footer Actions */}
-      <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 flex items-center justify-between gap-3">
+      <div className="px-4 py-3 border-t border-gray-200/30 flex items-center justify-between gap-3" style={{ background: 'var(--bg-secondary)' }}>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-sm text-gray-600 hover:text-gray-900"
+          className="text-sm hover:scale-105 transition-all duration-300"
+          style={{ color: 'var(--text-secondary)' }}
         >
           {expanded ? '▼ Collapse' : '▶ Expand'}
         </button>
@@ -121,7 +123,8 @@ export default function PlanCard({ plan, onAccept, onDismiss, isPinned }: PlanCa
           {!isPinned && onDismiss && (
             <button
               onClick={() => onDismiss(plan.id)}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              className="glass-light border border-gray-200/50 px-3 py-1.5 text-sm hover:glass-medium hover:glow-teal transition-all duration-300"
+              style={{ borderRadius: 'var(--radius-md)', color: 'var(--text-primary)' }}
             >
               Dismiss
             </button>
@@ -129,7 +132,8 @@ export default function PlanCard({ plan, onAccept, onDismiss, isPinned }: PlanCa
           {!isPinned && onAccept && (
             <button
               onClick={() => onAccept(plan.id)}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 transition-colors"
+              className="bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C] px-3 py-1.5 text-sm text-white font-semibold hover:glow-teal-strong hover:scale-105 active:scale-95 transition-all duration-300 shadow-soft"
+              style={{ borderRadius: 'var(--radius-md)' }}
             >
               Pin This Plan
             </button>

@@ -24,6 +24,7 @@ export function MessageComposer({
   const [inner, setInner] = React.useState(value ?? "");
   const ref = React.useRef<HTMLTextAreaElement | null>(null);
   const [isComposing, setIsComposing] = React.useState(false);
+  const [isFocused, setIsFocused] = React.useState(false);
 
   React.useEffect(() => {
     if (value !== undefined) setInner(value);
@@ -48,7 +49,7 @@ export function MessageComposer({
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); if (!disabled && !isSending) doSend(); }}
-      className={["flex items-end gap-2 sm:gap-3", className].filter(Boolean).join(' ')}
+      className={["flex items-end gap-3", className].filter(Boolean).join(' ')}
     >
       <textarea
         ref={ref}
@@ -57,31 +58,40 @@ export function MessageComposer({
         onKeyDown={onKeyDown}
         onCompositionStart={() => setIsComposing(true)}
         onCompositionEnd={() => setIsComposing(false)}
-        placeholder="Type your message… (Enter to send, Shift+Enter for newline)"
-        className="
-          flex-1 rounded-lg border border-gray-300 p-3 shadow-sm 
-          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        placeholder="Type your message…"
+        className={`
+          flex-1 glass-light border-2 p-4
+          focus:outline-none focus:glass-medium
           resize-none min-h-[44px] max-h-32
           text-wrap-anywhere
-        "
+          transition-all duration-300
+          ${isFocused ? 'border-[#5ECBBC] glow-teal' : 'border-gray-200/50'}
+        `}
         rows={1}
         style={{
-          fieldSizing: 'content'
+          fieldSizing: 'content',
+          borderRadius: 'var(--radius-xl)'
         } as any}
+        disabled={disabled || isSending}
       />
       <button
         type="submit"
         disabled={disabled || isSending || !(value !== undefined ? value.trim() : inner.trim())}
         className="
-          rounded-md bg-blue-600 text-white 
-          px-3 py-3 sm:px-4 
-          text-sm font-medium 
-          disabled:opacity-50 disabled:cursor-not-allowed
+          bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C]
+          text-white px-4 py-3 sm:px-5
+          text-sm font-semibold shadow-soft
+          hover:glow-teal-strong hover:scale-105
+          active:scale-95
+          focus:outline-none focus:glow-teal-strong
+          disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
+          transition-all duration-300
           min-h-[44px] min-w-[44px]
           flex items-center justify-center
-          hover:bg-blue-700 active:bg-blue-800
-          transition-colors
         "
+        style={{ borderRadius: 'var(--radius-lg)' }}
         aria-label={isSending ? 'Sending message' : 'Send message'}
       >
         {isSending ? (

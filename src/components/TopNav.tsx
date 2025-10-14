@@ -25,7 +25,7 @@ export default function TopNav({
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-gray-200 flex-shrink-0">
+      <header className="sticky top-0 z-30 glass-strong shadow-soft border-b border-gray-200/30 flex-shrink-0">
         <div className="max-w-3xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <button
@@ -35,18 +35,19 @@ export default function TopNav({
               aria-expanded={open}
               className="
                 inline-flex items-center justify-center
-                rounded-md border border-gray-300
+                glass-light border border-gray-200/50
                 min-h-[44px] min-w-[44px] px-3
-                text-sm hover:bg-gray-50 active:bg-gray-100
-                transition-colors
+                text-sm hover:glass-medium hover:glow-teal
+                transition-all duration-300
               "
+              style={{ borderRadius: 'var(--radius-md)' }}
             >
               <span className="text-lg">☰</span>
             </button>
-            <h1 className="text-base sm:text-lg font-semibold truncate text-gray-900 flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-semibold truncate flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
               {title}
               {badge && (
-                <span className="text-xs font-medium bg-blue-600 text-white px-2 py-1 rounded-md flex-shrink-0">
+                <span className="text-xs font-semibold bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C] text-white px-2.5 py-1 shadow-soft flex-shrink-0" style={{ borderRadius: 'var(--radius-md)' }}>
                   {badge}
                 </span>
               )}
@@ -58,11 +59,12 @@ export default function TopNav({
               href="/"
               className="
                 inline-flex items-center justify-center
-                rounded-md border border-gray-300
+                glass-light border border-gray-200/50
                 min-h-[44px] px-3 sm:px-4
-                text-sm hover:bg-gray-50 active:bg-gray-100
-                transition-colors
+                text-sm hover:glass-medium hover:glow-teal
+                transition-all duration-300
               "
+              style={{ borderRadius: 'var(--radius-md)' }}
             >
               <span className="hidden sm:inline">Home</span>
               <span className="sm:hidden">🏠</span>
@@ -73,11 +75,12 @@ export default function TopNav({
                 onClick={onShowInstructions}
                 className="
                   inline-flex items-center justify-center
-                  rounded-md border border-gray-300
+                  glass-light border border-gray-200/50
                   min-h-[44px] min-w-[44px] px-3
-                  text-sm hover:bg-gray-50 active:bg-gray-100
-                  transition-colors
+                  text-sm hover:glass-medium hover:glow-teal
+                  transition-all duration-300
                 "
+                style={{ borderRadius: 'var(--radius-md)' }}
                 aria-label="Show instructions"
                 title="Instructions"
               >
@@ -97,16 +100,17 @@ export default function TopNav({
           />
 
           {/* slide-over drawer */}
-          <aside className="fixed top-0 left-0 z-50 h-full w-80 max-w-[85vw] bg-white shadow-xl border-r border-gray-200 flex flex-col">
-            <div className="px-4 py-4 border-b flex items-center justify-between">
-              <span className="font-semibold text-gray-900">CMC Sober Coach</span>
+          <aside className="fixed top-0 left-0 z-50 h-full w-80 max-w-[85vw] glass-strong shadow-medium border-r border-gray-200/30 flex flex-col slide-in-left">
+            <div className="px-4 py-4 border-b border-gray-200/30 flex items-center justify-between">
+              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>CMC Sober Coach</span>
               <button
                 className="
-                  rounded-md border border-gray-300
+                  glass-light border border-gray-200/50
                   min-h-[44px] min-w-[44px] px-3
-                  text-sm hover:bg-gray-50 active:bg-gray-100
-                  transition-colors
+                  text-sm hover:glass-medium hover:glow-teal
+                  transition-all duration-300
                 "
+                style={{ borderRadius: 'var(--radius-md)' }}
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
               >
@@ -120,11 +124,15 @@ export default function TopNav({
                   <Link
                     href="/"
                     className="
-                      flex items-center gap-3 rounded-lg px-4 py-3
-                      hover:bg-gray-50 active:bg-gray-100
-                      transition-colors min-h-[44px]
-                      text-gray-900 font-medium
+                      flex items-center gap-3 px-4 py-3
+                      glass-light hover:glass-medium hover:glow-teal
+                      transition-all duration-300 min-h-[44px]
+                      font-medium
                     "
+                    style={{ 
+                      borderRadius: 'var(--radius-lg)',
+                      color: 'var(--text-primary)'
+                    }}
                     onClick={() => setOpen(false)}
                   >
                     <span className="text-xl">🏠</span>
@@ -135,11 +143,15 @@ export default function TopNav({
                   <Link
                     href="/learn"
                     className="
-                      flex items-center gap-3 rounded-lg px-4 py-3
-                      hover:bg-gray-50 active:bg-gray-100
-                      transition-colors min-h-[44px]
-                      text-gray-900 font-medium
+                      flex items-center gap-3 px-4 py-3
+                      glass-light hover:glass-medium hover:glow-teal
+                      transition-all duration-300 min-h-[44px]
+                      font-medium
                     "
+                    style={{ 
+                      borderRadius: 'var(--radius-lg)',
+                      color: 'var(--text-primary)'
+                    }}
                     onClick={() => setOpen(false)}
                   >
                     <span className="text-xl">📚</span>
@@ -150,11 +162,15 @@ export default function TopNav({
                   <Link
                     href="/advice"
                     className="
-                      flex items-center gap-3 rounded-lg px-4 py-3
-                      hover:bg-gray-50 active:bg-gray-100
-                      transition-colors min-h-[44px]
-                      text-gray-900 font-medium
+                      flex items-center gap-3 px-4 py-3
+                      glass-light hover:glass-medium hover:glow-teal
+                      transition-all duration-300 min-h-[44px]
+                      font-medium
                     "
+                    style={{ 
+                      borderRadius: 'var(--radius-lg)',
+                      color: 'var(--text-primary)'
+                    }}
                     onClick={() => setOpen(false)}
                   >
                     <span className="text-xl">💬</span>
@@ -165,26 +181,34 @@ export default function TopNav({
                   <Link
                     href="/onboarding"
                     className="
-                      flex items-center gap-3 rounded-lg px-4 py-3
-                      hover:bg-gray-50 active:bg-gray-100
-                      transition-colors min-h-[44px]
-                      text-gray-900 font-medium
+                      flex items-center gap-3 px-4 py-3
+                      glass-light hover:glass-medium hover:glow-teal
+                      transition-all duration-300 min-h-[44px]
+                      font-medium
                     "
+                    style={{ 
+                      borderRadius: 'var(--radius-lg)',
+                      color: 'var(--text-primary)'
+                    }}
                     onClick={() => setOpen(false)}
                   >
                     <span className="text-xl">🧾</span>
-                    <span>Onboarding <span className="text-sm text-gray-500">(demo)</span></span>
+                    <span>Onboarding <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>(demo)</span></span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/crisis"
                     className="
-                      flex items-center gap-3 rounded-lg px-4 py-3
-                      hover:bg-gray-50 active:bg-gray-100
-                      transition-colors min-h-[44px]
-                      text-gray-900 font-medium
+                      flex items-center gap-3 px-4 py-3
+                      glass-light hover:glass-medium hover:glow-teal
+                      transition-all duration-300 min-h-[44px]
+                      font-medium
                     "
+                    style={{ 
+                      borderRadius: 'var(--radius-lg)',
+                      color: 'var(--text-primary)'
+                    }}
                     onClick={() => setOpen(false)}
                   >
                     <span className="text-xl">🚨</span>

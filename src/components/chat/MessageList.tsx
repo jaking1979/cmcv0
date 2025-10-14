@@ -23,24 +23,32 @@ export function MessageList({
   }, [messages]);
 
   return (
-    <div className={["space-y-3", className].filter(Boolean).join(' ')}>
-      {messages.map((m) => {
+    <div className={["space-y-4", className].filter(Boolean).join(' ')}>
+      {messages.map((m, idx) => {
         const isUser = m.role === 'user';
-        const bubbleBase = "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-[15px] leading-relaxed";
-        const userBubble = "bg-blue-600 text-white rounded-br-sm";
-        const asstBubble = "bg-gray-100 text-gray-900 rounded-bl-sm";
+        const bubbleBase = "max-w-[85%] whitespace-pre-wrap px-5 py-3.5 text-[15px] leading-relaxed slide-up";
+        const userBubble = "bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C] text-white glow-teal";
+        const asstBubble = "glass-medium shadow-soft border border-gray-200/50";
+        const borderRadius = isUser ? "rounded-3xl rounded-br-lg" : "rounded-3xl rounded-bl-lg";
 
         return (
-          <div key={m.id} className={["flex", isUser ? "justify-end" : "justify-start"].join(' ')}>
-            {!isUser && showAvatars ? <div className="h-7 w-7 shrink-0 rounded-full bg-gray-200 mr-2" /> : null}
-            <div className={[bubbleBase, isUser ? userBubble : asstBubble].join(' ')}>
+          <div 
+            key={m.id} 
+            className={["flex", isUser ? "justify-end" : "justify-start", `stagger-${Math.min(idx, 5)}`].join(' ')}
+          >
+            {!isUser && showAvatars ? (
+              <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-[#B8AEE8] to-[#9B8FD9] mr-2 shadow-soft" />
+            ) : null}
+            <div className={[bubbleBase, isUser ? userBubble : asstBubble, borderRadius].join(' ')}>
               {renderHTML ? (
-                <div dangerouslySetInnerHTML={{ __html: m.content }} />
+                <div dangerouslySetInnerHTML={{ __html: m.content }} className={isUser ? 'text-white' : 'text-gray-900'} />
               ) : (
-                m.content
+                <span className={isUser ? 'text-white' : 'text-gray-900'}>{m.content}</span>
               )}
             </div>
-            {isUser && showAvatars ? <div className="h-7 w-7 shrink-0 rounded-full bg-blue-200 ml-2" /> : null}
+            {isUser && showAvatars ? (
+              <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-[#7FD9CC] to-[#5ECBBC] ml-2 shadow-soft" />
+            ) : null}
           </div>
         );
       })}

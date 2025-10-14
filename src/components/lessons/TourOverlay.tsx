@@ -57,15 +57,15 @@ export default function TourOverlay({ variant, onClose }: TourOverlayProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm p-4 fade-in" style={{ background: 'linear-gradient(135deg, rgba(94, 203, 188, 0.1) 0%, rgba(155, 143, 217, 0.1) 100%)' }}>
+      <div className="w-full max-w-lg glass-strong shadow-medium overflow-hidden scale-in" style={{ borderRadius: 'var(--radius-2xl)' }}>
         {/* Avatar Header */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-b border-blue-100">
+        <div className="p-6 border-b border-gray-200/30" style={{ background: 'linear-gradient(135deg, var(--cmc-teal-200) 0%, var(--lavender-300) 100%)' }}>
           <div className="flex items-start gap-4">
             <AvatarTalkingHead speaking={step === 0} size={64} className="shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-blue-200">
-                <p className="text-sm text-gray-900 leading-relaxed">
+              <div className="glass-strong px-4 py-3 shadow-soft border border-gray-200/30" style={{ borderRadius: 'var(--radius-lg)' }}>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>
                   {currentStep.description}
                 </p>
               </div>
@@ -76,16 +76,19 @@ export default function TourOverlay({ variant, onClose }: TourOverlayProps) {
         {/* Content */}
         <div className="p-6">
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
+            <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
               {currentStep.title}
             </h2>
             <div className="flex items-center gap-2">
               {steps.map((_, idx) => (
                 <div
                   key={idx}
-                  className={`h-2 flex-1 rounded-full transition-colors ${
-                    idx <= step ? 'bg-blue-600' : 'bg-gray-200'
-                  }`}
+                  className={`h-2 flex-1 transition-all duration-300`}
+                  style={{ 
+                    borderRadius: 'var(--radius-sm)',
+                    background: idx <= step ? 'linear-gradient(90deg, var(--cmc-teal-500) 0%, var(--cmc-teal-400) 100%)' : 'var(--bg-secondary)',
+                    boxShadow: idx <= step ? 'var(--glow-teal)' : 'none'
+                  }}
                 />
               ))}
             </div>
@@ -95,14 +98,19 @@ export default function TourOverlay({ variant, onClose }: TourOverlayProps) {
             {step === 0 && (
               <button
                 onClick={handleSkip}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                className="flex-1 glass-light border border-gray-200/50 px-4 py-2 hover:glass-medium hover:glow-teal transition-all duration-300"
+                style={{ 
+                  borderRadius: 'var(--radius-lg)',
+                  color: 'var(--text-primary)'
+                }}
               >
                 Skip tour
               </button>
             )}
             <button
               onClick={handleNext}
-              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 font-medium transition-colors"
+              className="flex-1 bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C] px-4 py-2 text-white font-semibold hover:glow-teal-strong hover:scale-105 active:scale-95 transition-all duration-300 shadow-soft"
+              style={{ borderRadius: 'var(--radius-lg)' }}
             >
               {step < steps.length - 1 ? 'Next' : 'Got it'}
             </button>

@@ -22,86 +22,128 @@ export default function Home() {
   // }, [])
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="h-dvh flex flex-col" style={{ 
+      background: 'linear-gradient(135deg, #F0F9FF 0%, #F0F4F8 50%, #FFF9F5 100%)'
+    }}>
       {/* Sticky global nav (hamburger menu lives inside TopNav) */}
       <TopNav title="🏠 Home" />
 
-      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0">
+      <main className="flex-1 flex flex-col px-3 sm:px-4 py-6 max-w-3xl mx-auto w-full min-h-0 overflow-y-auto">
         <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-full max-w-md flex flex-col items-center">
-            <Image
-              src={logo}
-              alt="CMC Sober Coach"
-              width={120}
-              height={120}
-              className="mb-4 rounded"
-              priority
-            />
+          <div className="w-full max-w-md flex flex-col items-center scale-in">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 glow-teal-strong" style={{ borderRadius: '24px', transform: 'scale(1.1)' }} />
+              <Image
+                src={logo}
+                alt="CMC Sober Coach"
+                width={120}
+                height={120}
+                className="relative z-10 shadow-soft"
+                style={{ borderRadius: '24px' }}
+                priority
+              />
+            </div>
 
-            <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-6 text-center text-wrap-anywhere">
+            <h1 className="text-2xl sm:text-3xl font-semibold mb-2 text-center text-wrap-anywhere" style={{ color: 'var(--text-primary)' }}>
               Welcome to CMC Sober Coach
             </h1>
+            <p className="text-sm mb-8 text-center" style={{ color: 'var(--text-secondary)' }}>
+              Science-based support for lasting change
+            </p>
 
             {/* Big primary button for Onboarding */}
             <Link
               href="/onboarding"
               className="
                 w-full inline-flex items-center justify-center 
-                rounded-lg bg-blue-600 px-6 py-3 
-                text-white text-base sm:text-lg font-medium 
-                shadow-sm hover:bg-blue-700 active:bg-blue-800
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 
-                mb-6 min-h-[44px] transition-colors
+                bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C]
+                px-6 py-4 
+                text-white text-base sm:text-lg font-semibold 
+                shadow-soft hover:glow-teal-strong hover:scale-105
+                active:scale-95
+                focus:outline-none focus:glow-teal-strong
+                mb-6 min-h-[44px] transition-all duration-300
               "
+              style={{ borderRadius: 'var(--radius-xl)' }}
             >
               🚀 Start Onboarding
             </Link>
 
             {/* Secondary actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full mb-6">
               <Link 
                 href="/learn" 
                 className="
-                  bg-gray-100 text-gray-800 font-semibold py-3 px-4 rounded-lg 
-                  shadow-sm hover:bg-gray-200 active:bg-gray-300
-                  text-center transition-colors min-h-[44px]
-                  flex items-center justify-center
+                  glass-medium shadow-soft border border-gray-200/30
+                  font-semibold py-4 px-5
+                  text-center transition-all duration-300 min-h-[44px]
+                  flex items-center justify-center gap-2
+                  hover:glass-strong hover:glow-lavender hover:scale-105
+                  active:scale-95
                 "
+                style={{ 
+                  borderRadius: 'var(--radius-lg)',
+                  color: 'var(--text-primary)'
+                }}
               >
-                📚 Learn Something
+                <span>📚</span>
+                <span>Learn Something</span>
               </Link>
               <Link 
                 href="/advice" 
                 className="
-                  bg-gray-100 text-gray-800 font-semibold py-3 px-4 rounded-lg 
-                  shadow-sm hover:bg-gray-200 active:bg-gray-300
-                  text-center transition-colors min-h-[44px]
-                  flex items-center justify-center
+                  glass-medium shadow-soft border border-gray-200/30
+                  font-semibold py-4 px-5
+                  text-center transition-all duration-300 min-h-[44px]
+                  flex items-center justify-center gap-2
+                  hover:glass-strong hover:glow-teal hover:scale-105
+                  active:scale-95
                 "
+                style={{ 
+                  borderRadius: 'var(--radius-lg)',
+                  color: 'var(--text-primary)'
+                }}
               >
-                💡 Get Advice
+                <span>💡</span>
+                <span>Get Advice</span>
               </Link>
               <Link 
                 href="/chat" 
                 className="
-                  bg-gray-100 text-gray-800 font-semibold py-3 px-4 rounded-lg 
-                  shadow-sm hover:bg-gray-200 active:bg-gray-300
-                  text-center transition-colors min-h-[44px]
-                  flex items-center justify-center
+                  glass-medium shadow-soft border border-gray-200/30
+                  font-semibold py-4 px-5
+                  text-center transition-all duration-300 min-h-[44px]
+                  flex items-center justify-center gap-2
+                  hover:glass-strong hover:glow-lavender hover:scale-105
+                  active:scale-95
                 "
+                style={{ 
+                  borderRadius: 'var(--radius-lg)',
+                  color: 'var(--text-primary)'
+                }}
               >
-                💬 Just Chat
+                <span>💬</span>
+                <span>Just Chat</span>
               </Link>
               <Link 
                 href="/crisis" 
                 className="
-                  bg-red-100 text-red-800 font-semibold py-3 px-4 rounded-lg 
-                  shadow-sm hover:bg-red-200 active:bg-red-300
-                  text-center transition-colors min-h-[44px]
-                  flex items-center justify-center
+                  glass-medium shadow-soft border-2
+                  font-semibold py-4 px-5
+                  text-center transition-all duration-300 min-h-[44px]
+                  flex items-center justify-center gap-2
+                  hover:glass-strong hover:scale-105
+                  active:scale-95
                 "
+                style={{ 
+                  borderRadius: 'var(--radius-lg)',
+                  background: 'linear-gradient(135deg, #FFE5E5 0%, #FFD4D4 100%)',
+                  color: '#B91C1C',
+                  borderColor: 'rgba(185, 28, 28, 0.2)'
+                }}
               >
-                🚨 Crisis Support
+                <span>🚨</span>
+                <span>Crisis Support</span>
               </Link>
             </div>
 
@@ -110,10 +152,14 @@ export default function Home() {
               type="button"
               onClick={() => setShowModal(true)}
               className="
-                inline-flex items-center rounded-lg border border-gray-300 
-                px-4 py-2 text-sm hover:bg-gray-50 active:bg-gray-100
-                transition-colors min-h-[44px]
+                inline-flex items-center glass-light border border-gray-200/50
+                px-4 py-2 text-sm hover:glass-medium hover:glow-teal
+                transition-all duration-300 min-h-[44px]
               "
+              style={{ 
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-secondary)'
+              }}
               aria-label="Show instructions"
               title="Instructions"
             >
@@ -126,23 +172,24 @@ export default function Home() {
       {/* First-run modal */}
       {showModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4 overflow-y-auto"
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center px-4 overflow-y-auto fade-in"
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-lg bg-white rounded-lg shadow-lg max-h-[90vh] flex flex-col">
-            <div className="border-b px-5 py-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Welcome to CMC Sober Coach (Demo)</h2>
+          <div className="w-full max-w-lg glass-strong shadow-medium border border-gray-200/30 max-h-[90vh] flex flex-col scale-in" style={{ borderRadius: 'var(--radius-2xl)' }}>
+            <div className="border-b border-gray-200/30 px-5 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Welcome to CMC Sober Coach</h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="rounded-md border px-2 py-1 text-sm hover:bg-gray-50"
+                className="glass-light border border-gray-200/50 px-2 py-1 text-sm hover:glass-medium hover:glow-teal transition-all duration-300"
+                style={{ borderRadius: 'var(--radius-md)' }}
                 aria-label="Close"
               >
                 ✕
               </button>
             </div>
 
-            <div className="px-5 py-4 space-y-4 text-sm text-gray-700 flex-1 overflow-y-auto">
+            <div className="px-5 py-4 space-y-4 text-sm flex-1 overflow-y-auto" style={{ color: 'var(--text-secondary)' }}>
               <p>
                 This is a demo version of the CMC Sober Coach app. It’s a behavior coaching
                 tool, not a medical device or a mental health service. In an emergency, contact
@@ -188,16 +235,21 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="border-t px-5 py-3 flex items-center justify-end gap-2">
+            <div className="border-t border-gray-200/30 px-5 py-4 flex items-center justify-end gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50"
+                className="glass-light border border-gray-200/50 px-4 py-2 text-sm hover:glass-medium hover:glow-teal transition-all duration-300"
+                style={{ 
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)'
+                }}
               >
                 Got it
               </button>
               <Link
                 href="/onboarding"
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                className="bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C] px-4 py-2 text-sm text-white font-semibold hover:glow-teal-strong hover:scale-105 active:scale-95 transition-all duration-300"
+                style={{ borderRadius: 'var(--radius-md)' }}
               >
                 Start Onboarding
               </Link>
