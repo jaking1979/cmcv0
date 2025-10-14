@@ -493,9 +493,11 @@ export default function Page() {
         )}
       </div>
 
-      {/* Input dock (bottom) */}
-      <div className="mt-auto mx-auto w-full max-w-3xl px-4 py-4">
-        <MessageComposer onSend={onSend} />
+      {/* Input dock (bottom sticky) */}
+      <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 pb-safe-area-inset-bottom pt-3">
+        <div className="mx-auto w-full max-w-3xl">
+          <MessageComposer onSend={onSend} />
+        </div>
       </div>
     </main>
   );

@@ -525,14 +525,14 @@ export default function AdvicePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="h-dvh bg-white flex flex-col">
       <TopNav 
         title="🧭 Get Advice" 
         onShowInstructions={() => setShowInstr(true)}
         badge={isV1Enabled ? "v1" : undefined}
       />
 
-      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0">
+      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0 overflow-y-auto">
         <div className="flex-shrink-0 mb-4">
           <h1 className="text-xl sm:text-2xl font-semibold mb-2 text-gray-900">🧭 Get Advice</h1>
           <p className="text-sm text-gray-600 mb-4 leading-relaxed text-wrap-anywhere">

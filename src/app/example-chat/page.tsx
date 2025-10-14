@@ -11,15 +11,17 @@ export default function ExampleChatPage() {
   const { messages, input, setInput, send, isSending } = useChat({ seed });
 
   return (
-    <div className="mx-auto max-w-3xl p-4">
-      <ChatPane
-        messages={messages}
-        onSend={(v) => send(v)}
-        isSending={isSending}
-        inputValue={input}
-        onInputChange={setInput}
-        footer={<span>Not a therapist; this is behavior coaching.</span>}
-      />
+    <div className="h-dvh bg-white flex flex-col">
+      <div className="flex-1 flex flex-col mx-auto max-w-3xl w-full p-4 min-h-0">
+        <ChatPane
+          messages={messages}
+          onSend={(v) => send(v)}
+          isSending={isSending}
+          inputValue={input}
+          onInputChange={setInput}
+          footer={<span>Not a therapist; this is behavior coaching.</span>}
+        />
+      </div>
     </div>
   );
 }

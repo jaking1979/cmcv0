@@ -320,7 +320,7 @@ export default function OnboardingPage() {
 
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="h-dvh bg-white flex flex-col">
       <TopNav 
         title="🧭 Onboarding Chat" 
         onShowInstructions={() => setShowInstructions(true)}

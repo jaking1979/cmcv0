@@ -316,17 +316,19 @@ export default function LessonPlayer({ lesson }: LessonPlayerProps) {
         </div>
       )}
 
-      {/* Input composer (bottom) */}
+      {/* Input composer (bottom sticky) */}
       {showComposer && (
-        <div className="mt-auto mx-auto w-full max-w-3xl px-4 py-4">
-          <MessageComposer 
-            value={input}
-            onChange={setInput}
-            onSend={(text) => {
-              handleUserInput(text)
-              setInput('')
-            }}
-          />
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 pb-safe-area-inset-bottom pt-3">
+          <div className="mx-auto w-full max-w-3xl">
+            <MessageComposer 
+              value={input}
+              onChange={setInput}
+              onSend={(text) => {
+                handleUserInput(text)
+                setInput('')
+              }}
+            />
+          </div>
         </div>
       )}
     </main>
