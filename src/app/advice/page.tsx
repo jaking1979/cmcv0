@@ -766,27 +766,36 @@ export default function AdvicePage() {
                 )
               })}
               
-              <div className="mt-4 pt-3 border-t border-blue-200 flex gap-2">
-                <button
-                  onClick={() => {
-                    // Accept plan - add follow-up message
-                    setMessages(prev => [...prev, {
-                      role: 'assistant',
-                      text: "Great! I've noted your plan. Which action would you like to start with, or would you like to talk through any of them?",
-                      kind: 'FOLLOWUP'
-                    }])
-                    setCurrentPlan(null)
-                  }}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 active:bg-blue-800 transition-colors min-h-[44px]"
+              <div className="mt-4 pt-3 border-t border-blue-200 space-y-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      // Accept plan - add follow-up message
+                      setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        text: "Great! I've noted your plan. Which action would you like to start with, or would you like to talk through any of them?",
+                        kind: 'FOLLOWUP'
+                      }])
+                      setCurrentPlan(null)
+                    }}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 active:bg-blue-800 transition-colors min-h-[44px]"
+                  >
+                    Accept & Continue
+                  </button>
+                  <button
+                    onClick={() => setCurrentPlan(null)}
+                    className="px-4 py-2 bg-white text-blue-600 border border-blue-600 text-sm font-medium rounded-md hover:bg-blue-50 active:bg-blue-100 transition-colors min-h-[44px]"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <a
+                  href="/plan"
+                  className="block w-full text-center px-4 py-2 bg-white text-blue-600 border border-blue-300 text-sm font-medium rounded-md hover:bg-blue-50 transition-colors min-h-[44px] flex items-center justify-center gap-2"
                 >
-                  Accept & Continue
-                </button>
-                <button
-                  onClick={() => setCurrentPlan(null)}
-                  className="px-4 py-2 bg-white text-blue-600 border border-blue-600 text-sm font-medium rounded-md hover:bg-blue-50 active:bg-blue-100 transition-colors min-h-[44px]"
-                >
-                  Dismiss
-                </button>
+                  <span>📋</span>
+                  <span>View All My Plans</span>
+                </a>
               </div>
             </div>
           )}

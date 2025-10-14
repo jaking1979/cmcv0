@@ -15,6 +15,7 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 const events = new Map<string, CoachEvent[]>()  // sessionId -> events
 const sessions = new Map<string, SessionInfo>()  // sessionId -> session info
 const plans = new Map<string, PersonalizedPlan[]>()  // sessionId -> plans
+const pinnedPlans = new Map<string, string>()  // sessionId -> pinnedPlanId
 
 /**
  * Store a coach event
@@ -115,6 +116,7 @@ export function removeSession(sessionId: string): void {
   sessions.delete(sessionId)
   events.delete(sessionId)
   plans.delete(sessionId)
+  pinnedPlans.delete(sessionId)
 }
 
 /**
@@ -173,6 +175,28 @@ export function getLatestPlan(sessionId: string): PersonalizedPlan | undefined {
 }
 
 /**
+ * Pin a plan for a session
+ */
+export function pinPlan(sessionId: string, planId: string): void {
+  pinnedPlans.set(sessionId, planId)
+  updateSessionActivity(sessionId)
+}
+
+/**
+ * Get pinned plan ID for a session
+ */
+export function getPinnedPlanId(sessionId: string): string | undefined {
+  return pinnedPlans.get(sessionId)
+}
+
+/**
+ * Unpin a plan for a session
+ */
+export function unpinPlan(sessionId: string): void {
+  pinnedPlans.delete(sessionId)
+}
+
+/**
  * Get store statistics (for monitoring)
  */
 export function getStoreStats() {
@@ -202,4 +226,5 @@ export function clearAll(): void {
   events.clear()
   sessions.clear()
   plans.clear()
+  pinnedPlans.clear()
 }

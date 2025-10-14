@@ -1,3 +1,12 @@
+/**
+ * LEGACY IMPLEMENTATION
+ * This is the original hardcoded relapse-justifications lesson.
+ * It has been replaced by the dynamic lesson system at:
+ * /learn/relapse-justifications-part-1 and /learn/relapse-justifications-part-2
+ * 
+ * This file remains for backward compatibility but may be removed in the future.
+ */
+
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';

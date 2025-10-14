@@ -1,176 +1,199 @@
 'use client'
 
-import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import TopNav from '@/components/TopNav'
-import GlobalInstructionsModal from '@/components/GlobalInstructionsModal'
-
-import InstructionsModal from '@/components/GlobalInstructionsModal'
-
-const lessons = {
-  'relapse-justifications': {
-    title: 'Relapse Justifications',
-    tag: 'ITC Core',
-    teaser: `When you notice your brain is coming up with reasons it’s OK to use, it doesn’t mean that’s really what you want to do! It’s probably a Relapse Justification, and understanding that can help you avoid it.`
-  },
-  'identifying-your-triggers': {
-    title: 'Identifying Your Triggers',
-    tag: 'Triggers',
-    teaser: `If you want to change a behavior, it’s helpful to understand what is driving that behavior.`
-  },
-  'finding-your-pace-of-change': {
-    title: 'Finding Your Pace of Change',
-    tag: 'Self-Compassion',
-    teaser: `We all change at different rates. Understanding your own pace of change can help you figure out how to change effectively.`
-  },
-  'your-brain-and-substance-use': {
-    title: 'Your Brain and Substance Use',
-    tag: 'ACT Concepts',
-    teaser: `Substance use isn’t just behavioral, a lot of it is how your brain reacts to substances.`
-  },
-  'avoiding-relapse-drift': {
-    title: 'Avoiding Relapse Drift',
-    tag: 'Coping Skills',
-    teaser: `Relapse doesn’t usually happen “out of the blue,” it’s usually a slow drift back to old behaviors.`
-  },
-  'stop-and-consider': {
-    title: 'STOP - and Consider …',
-    tag: 'Values',
-    teaser: `Stopping to consider your options provides you a bit of a buffer between your thoughts/feelings (wanting to use, having cravings) and your actions (taking a drink, calling the dealer).`
-  },
-  'your-personal-emergency-plan': {
-    title: 'Your Personal Emergency Plan',
-    tag: 'Coping Skills',
-    teaser: `In life, if you never want to be unprepared, especially for an emergency.`
-  },
-  'behavioral-strategies': {
-    title: 'Behavioral Strategies to Support Change',
-    tag: 'ITC Core',
-    teaser: `You’re trying to change. Let’s come up with plans for how to do it.`
-  },
-}
-
-const tags = ["All", "ITC Core", "ACT Concepts", "Self-Compassion", "Values", "Coping Skills", "Triggers"];
-const COMPLETED_KEY = 'cmc_completed_lessons'
+import TourOverlay from '@/components/lessons/TourOverlay'
+import LessonCard from '@/components/lessons/LessonCard'
+import LessonFilters from '@/components/lessons/LessonFilters'
+import { generateRecommendedPlan } from '@/lib/plan/recommender'
+import { getCompletedLessons, getTourFlags, setTourFlag } from '@/lib/state/lessonState'
+import type { Lesson } from '@/lib/lessons/types'
 
 export default function LearnIndexPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTag, setSelectedTag] = useState('All');
+  const [view, setView] = useState<'choose' | 'plan' | 'all'>('choose')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTag, setSelectedTag] = useState('All')
   const [completed, setCompleted] = useState<string[]>([])
-  const [showInstructions, setShowInstructions] = useState(false)
+  const [showTour, setShowTour] = useState(false)
+  const [lessons, setLessons] = useState<Lesson[]>([])
+  const [tags, setTags] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
+  const [recommendedPlan, setRecommendedPlan] = useState<{ ordered: Lesson[]; rationale: string } | null>(null)
 
   useEffect(() => {
-    try {
-      const list = JSON.parse(localStorage.getItem(COMPLETED_KEY) || '[]')
-      if (Array.isArray(list)) setCompleted(list)
-    } catch {}
+    setMounted(true)
   }, [])
 
-  const filteredLessons = Object.entries(lessons).filter(([_, lesson]) => {
-    const matchesSearch = lesson.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTag = selectedTag === 'All' || lesson.tag === selectedTag;
-    return matchesSearch && matchesTag;
-  });
+  useEffect(() => {
+    if (!mounted) return
+
+    // Load lessons from API
+    fetch('/api/lessons')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setLessons(data.lessons)
+          setTags(data.tags)
+
+          // Generate recommended plan
+          const plan = generateRecommendedPlan(data.lessons)
+          setRecommendedPlan(plan)
+        }
+        setLoading(false)
+      })
+      .catch(error => {
+        console.error('Error loading lessons:', error)
+        setLoading(false)
+      })
+
+    // Load completed lessons
+    const completedList = getCompletedLessons()
+    setCompleted(completedList)
+
+    // Check tour
+    const tourFlags = getTourFlags()
+    if (!tourFlags.first_visit_learn_seen) {
+      setShowTour(true)
+    }
+  }, [mounted])
+
+  const handleCloseTour = () => {
+    setShowTour(false)
+    setTourFlag('learn', true)
+  }
+
+  const filteredLessons = lessons.filter(lesson => {
+    const matchesSearch = lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         lesson.description.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesTag = selectedTag === 'All' || lesson.tags.includes(selectedTag)
+    return matchesSearch && matchesTag
+  })
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col">
+        <TopNav title="📚 Learn Something" />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-gray-500">Loading lessons...</div>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <TopNav title="📚 Learn Something" onShowInstructions={() => setShowInstructions(true)} />
-      
-      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0">
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-4">{completed.length} / {Object.keys(lessons).length} lessons completed</p>
-          
-          <div className="space-y-3">
-            <input
-              type="text"
-              placeholder="Search lessons..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="
-                w-full p-3 border border-gray-300 rounded-lg shadow-sm
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                min-h-[44px] text-base
-              "
-            />
-            
-            <select
-              value={selectedTag}
-              onChange={(e) => setSelectedTag(e.target.value)}
-              className="
-                w-full p-3 border border-gray-300 rounded-lg shadow-sm
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                min-h-[44px] text-base bg-white
-              "
-              aria-label="Filter lessons by tag"
-            >
-              {tags.map(tag => (
-                <option key={tag} value={tag}>{tag}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+      <TopNav title="📚 Learn Something" />
 
-        <div className="flex-1 overflow-y-auto">
-          <ul className="space-y-4 pb-4">
-            {filteredLessons.map(([slug, lesson]) => {
-              const isDone = completed.includes(slug as string)
-              return (
-                <li key={slug} className="
-                  border border-gray-200 p-4 rounded-lg shadow-sm 
-                  hover:shadow-md hover:border-gray-300 
-                  transition-all duration-200
-                  bg-white
-                ">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-start gap-2 flex-wrap">
-                      <Link 
-                        href={`/learn/${slug}`} 
-                        className="
-                          text-lg sm:text-xl font-semibold text-blue-700 
-                          hover:text-blue-800 hover:underline
-                          leading-tight flex-1 min-w-0
-                          text-wrap-anywhere
-                        "
-                      >
-                        {lesson.title}
-                      </Link>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs font-medium bg-blue-100 text-blue-800 rounded-full px-2 py-1">
-                          {lesson.tag}
-                        </span>
-                        {isDone && (
-                          <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-2 py-1">
-                            ✓ Completed
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-gray-700 text-sm sm:text-base leading-relaxed text-wrap-anywhere">
-                      {lesson.teaser}
-                    </p>
+      {showTour && <TourOverlay variant="learn" onClose={handleCloseTour} />}
+
+      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0">
+        {view === 'choose' && (
+          <div className="space-y-4">
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-2">
+                {completed.length} / {lessons.length} lessons completed
+              </p>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg p-6 bg-gradient-to-br from-blue-50 to-indigo-50 hover:shadow-md transition-shadow cursor-pointer"
+                 onClick={() => setView('plan')}>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">📋 Follow the Lesson Plan</h2>
+              <p className="text-gray-700 mb-4">
+                Get a personalized sequence of lessons based on your strengths and areas for growth.
+              </p>
+              <button className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 font-medium">
+                View My Plan
+              </button>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg p-6 bg-gradient-to-br from-emerald-50 to-teal-50 hover:shadow-md transition-shadow cursor-pointer"
+                 onClick={() => setView('all')}>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">📚 See All Lessons</h2>
+              <p className="text-gray-700 mb-4">
+                Browse the complete library and choose lessons that interest you most.
+              </p>
+              <button className="w-full rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 font-medium">
+                Browse All Lessons
+              </button>
+            </div>
+          </div>
+        )}
+
+        {view === 'plan' && recommendedPlan && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Your Lesson Plan</h2>
+              <button
+                onClick={() => setView('choose')}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                ← Back
+              </button>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {recommendedPlan.rationale}
+              </p>
+            </div>
+
+            <div className="space-y-4 overflow-y-auto pb-4">
+              {recommendedPlan.ordered.map((lesson, idx) => (
+                <div key={lesson.slug} className="relative">
+                  <div className="absolute -left-8 top-4 w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center font-bold">
+                    {idx + 1}
                   </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+                  <LessonCard
+                    lesson={lesson}
+                    isCompleted={completed.includes(lesson.slug)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {view === 'all' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">All Lessons</h2>
+              <button
+                onClick={() => setView('choose')}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                ← Back
+              </button>
+            </div>
+
+            <LessonFilters
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedTag={selectedTag}
+              onTagChange={setSelectedTag}
+              tags={tags}
+            />
+
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-4 pb-4">
+                {filteredLessons.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No lessons found matching your criteria.
+                  </div>
+                ) : (
+                  filteredLessons.map(lesson => (
+                    <LessonCard
+                      key={lesson.slug}
+                      lesson={lesson}
+                      isCompleted={completed.includes(lesson.slug)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
-      {showInstructions && (
-        <GlobalInstructionsModal open={true}
-          title="How to Use the Learn Page"
-          onClose={() => setShowInstructions(false)}
-        >
-          <p>This is a demo of the Learn section of the app. You can:</p>
-          <ul className="list-disc pl-6 space-y-1">
-            <li>Browse lessons by category or search.</li>
-            <li>Click on a lesson to read it fully.</li>
-            <li>Mark lessons as completed when you finish them.</li>
-          </ul>
-          <p className="mt-2 text-sm text-gray-600">
-            Note: This is a prototype. Some features may not behave exactly as in the final app.
-          </p>
-        </GlobalInstructionsModal>
-      )}
     </div>
   )
 }

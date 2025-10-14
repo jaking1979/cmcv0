@@ -2,7 +2,7 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import type { CoachMessage } from '@/server/ai/types'
 import { getEvents } from '@/server/store/memory'
-import { storePlan, getLatestPlan } from '@/server/store/memory'
+import { storePlan, getPlans, getPinnedPlanId } from '@/server/store/memory'
 import { getOrCreateSession, createSessionResponse, isRateLimited } from '@/server/util/session'
 import { redactMessages } from '@/server/util/redactPII'
 import { synthesizePlan } from '@/server/ai/manager/planManager'
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/plan
- * Retrieve the most recent plan for the session
+ * Retrieve all plans for the session
  */
 export async function GET(request: NextRequest) {
   try {
@@ -117,24 +117,15 @@ export async function GET(request: NextRequest) {
     // Get session
     const session = getOrCreateSession(request)
     
-    // Get latest plan
-    const plan = getLatestPlan(session.id)
-    
-    if (!plan) {
-      return NextResponse.json(
-        { 
-          success: true,
-          plan: null,
-          message: 'No plan generated yet for this session'
-        },
-        { status: 200 }
-      )
-    }
+    // Get all plans for this session
+    const sessionPlans = getPlans(session.id)
+    const pinnedId = getPinnedPlanId(session.id)
     
     return createSessionResponse(
       {
         success: true,
-        plan,
+        plans: sessionPlans,
+        pinnedPlanId: pinnedId,
         sessionId: session.id,
       },
       session
