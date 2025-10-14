@@ -33,6 +33,7 @@ export interface PersonalizedPlan {
   actions: PlanAction[]
   rationale: string
   confidence: number
+  eventsAnalyzed?: number
 }
 
 export interface PlanAction {
