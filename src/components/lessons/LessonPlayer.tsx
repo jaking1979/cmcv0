@@ -23,6 +23,8 @@ function markdownToHtml(md: string): string {
   const lines = (md || '').split(/\r?\n/)
   const out: string[] = []
   let inList = false
+  let inTable = false
+  let tableRows: string[] = []
 
   const flushList = () => {
     if (inList) {
@@ -31,8 +33,44 @@ function markdownToHtml(md: string): string {
     }
   }
 
+  const flushTable = () => {
+    if (inTable && tableRows.length > 0) {
+      out.push('<table class="table-auto border-collapse w-full my-4">')
+      tableRows.forEach((row, idx) => {
+        const cells = row.split('|').filter(c => c.trim())
+        const tag = idx === 0 ? 'th' : 'td'
+        const rowClass = idx === 0 ? 'bg-gray-100' : ''
+        out.push(`<tr class="${rowClass}">`)
+        cells.forEach(cell => {
+          const cellClass = tag === 'th' ? 'border border-gray-300 px-4 py-2 font-semibold text-left' : 'border border-gray-300 px-4 py-2'
+          out.push(`<${tag} class="${cellClass}">${escapeHtml(cell.trim())}</${tag}>`)
+        })
+        out.push('</tr>')
+      })
+      out.push('</table>')
+      tableRows = []
+      inTable = false
+    }
+  }
+
   for (let raw of lines) {
     const line = raw.trim()
+
+    // Check for table rows (lines with pipes)
+    if (line.includes('|') && !line.startsWith('#')) {
+      // Skip separator lines (like | :---- | :---- |)
+      if (/^\|[\s:|-]+\|$/.test(line)) {
+        continue
+      }
+      flushList()
+      if (!inTable) {
+        inTable = true
+      }
+      tableRows.push(line)
+      continue
+    } else {
+      flushTable()
+    }
 
     let m
     if ((m = /^###\s+(.*)$/.exec(line))) {
@@ -71,6 +109,7 @@ function markdownToHtml(md: string): string {
   }
 
   flushList()
+  flushTable()
   return out.join('\n').replace(/(?:<br\/>\s*){2,}/g, '<br/>')
 }
 
