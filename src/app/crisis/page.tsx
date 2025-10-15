@@ -1,10 +1,14 @@
 'use client'
 
 import TopNav from '@/components/TopNav'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function CrisisPage() {
   const [showConfirm, setShowConfirm] = useState<string | null>(null)
+
+  useEffect(() => {
+    document.title = "Crisis Support - CMC Sober Coach"
+  }, [])
 
   function demoCall(kind: '911' | '988') {
     setShowConfirm(kind)
@@ -43,7 +47,8 @@ export default function CrisisPage() {
                   min-h-[44px] transition-colors
                 "
               >
-                Call 911 (demo)
+                Call 911
+                <span className="block text-xs font-normal opacity-75">(DEMO - Not functional)</span>
               </button>
               <button
                 type="button"
@@ -56,7 +61,8 @@ export default function CrisisPage() {
                   min-h-[44px] transition-colors
                 "
               >
-                Call 988 (demo)
+                Call 988
+                <span className="block text-xs font-normal opacity-75">(DEMO - Not functional)</span>
               </button>
             </div>
           </section>

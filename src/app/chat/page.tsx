@@ -1,11 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import TopNav from '@/components/TopNav'
 import GlobalInstructionsModal from '@/components/GlobalInstructionsModal'
 
 export default function ChatHolderPage() {
   const [showInstructions, setShowInstructions] = useState(false)
+
+  useEffect(() => {
+    document.title = "Just Chat - CMC Sober Coach"
+  }, [])
 
   return (
     <div className="min-h-screen bg-white flex flex-col">

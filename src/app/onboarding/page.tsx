@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import TopNav from '@/components/TopNav'
 import { ChatPane } from '@/components/chat'
 import AssessmentProgressMeter from '@/components/AssessmentProgressMeter'
+import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 
@@ -43,6 +44,8 @@ export default function OnboardingPage() {
   const [finalizing, setFinalizing] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
+  const [showTour, setShowTour] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   // V1 features - NOW DEFAULT
   const [isV1Enabled, setIsV1Enabled] = useState(true) // V1 is now the default
@@ -51,7 +54,24 @@ export default function OnboardingPage() {
   const [hasTriggeredTargetedMode, setHasTriggeredTargetedMode] = useState(false)
 
   useEffect(() => {
+    // Set page title
+    document.title = "Onboarding Chat - CMC Sober Coach"
+    
     setShowInstructions(true)
+    
+    // Check if first visit for tour
+    const tourSeen = localStorage.getItem('first_visit_onboarding_seen')
+    if (!tourSeen) {
+      setShowTour(true)
+    } else {
+      // Show welcome message if no messages yet
+      if (messages.length === 0) {
+        setMessages([{
+          role: 'assistant',
+          content: "Hi, I'm Josh, your AI sober coach. I'd like to get to know you better so I can provide personalized support. Tell me a bit about what brings you here today and what you're hoping to achieve."
+        }])
+      }
+    }
     
     // V1 is now default, but allow disabling with ?v1=0
     const urlParams = new URLSearchParams(window.location.search)
@@ -167,6 +187,7 @@ export default function OnboardingPage() {
 
     setInput('')
     setLoading(true)
+    setError(null)
 
     const userMsg: Msg = { role: 'user', content: text }
     const assistantPlaceholder: Msg = { role: 'assistant', content: '' }
@@ -194,6 +215,10 @@ export default function OnboardingPage() {
             // Also trigger background mapping (for future real API integration)
             triggerAssessmentMapping(nextMessages).catch(console.error)
           }
+    } catch (err) {
+      setError('Sorry, I encountered an error. Please try again.')
+      // Remove the placeholder message on error
+      setMessages(prev => prev.slice(0, -1))
     } finally {
       setLoading(false)
     }
@@ -335,7 +360,32 @@ export default function OnboardingPage() {
         />
       )}
 
-      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0">
+      <main className="flex-1 flex flex-col px-3 sm:px-4 py-4 max-w-3xl mx-auto w-full min-h-0 overflow-y-auto">
+        {/* Error banner */}
+        {error && (
+          <div className="mb-3 p-3 glass-medium border-2 border-red-300 shadow-soft slide-up" style={{ borderRadius: 'var(--radius-lg)', background: 'linear-gradient(135deg, #FEE 0%, #FDD 100%)' }}>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm flex-1" style={{ color: '#991B1B' }}>
+                {error}
+              </p>
+              <button
+                onClick={() => setError(null)}
+                className="text-sm font-semibold hover:scale-105 transition-all"
+                style={{ color: '#991B1B' }}
+              >
+                ✕
+              </button>
+            </div>
+            <button
+              onClick={() => { setError(null); void sendCurrentInput(); }}
+              className="mt-2 text-xs font-semibold glass-light border border-red-300 px-3 py-1.5 hover:glass-medium transition-all duration-300"
+              style={{ borderRadius: 'var(--radius-md)', color: '#991B1B' }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         <div className="flex-1 flex flex-col min-h-0">
           <ChatPane
             className="flex-1"
@@ -344,6 +394,7 @@ export default function OnboardingPage() {
             isSending={loading}
             inputValue={input}
             onInputChange={setInput}
+            disabled={loading}
             footer={
               <span className="text-wrap-anywhere">
                 CMC Sober Coach provides behavior coaching. It is not a medical tool and does not provide therapy, diagnosis, or emergency services.
@@ -354,11 +405,7 @@ export default function OnboardingPage() {
         </div>
 
         <div className="mt-4 pt-4 border-t border-gray-200 flex-shrink-0">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <p className="text-xs text-gray-500 leading-relaxed text-wrap-anywhere">
-              CMC Sober Coach provides behavior coaching. It is not a medical tool and does not provide therapy, diagnosis, or emergency services.
-            </p>
-            <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowInstructions(true)}
@@ -402,6 +449,23 @@ export default function OnboardingPage() {
           </div>
         )}
       </main>
+
+      {/* Tour Overlay */}
+      {showTour && (
+        <OnboardingTourOverlay
+          onClose={() => {
+            setShowTour(false)
+            localStorage.setItem('first_visit_onboarding_seen', '1')
+            // Show welcome message after tour
+            if (messages.length === 0) {
+              setMessages([{
+                role: 'assistant',
+                content: "Hi, I'm Josh, your AI sober coach. I'd like to get to know you better so I can provide personalized support. Tell me a bit about what brings you here today and what you're hoping to achieve."
+              }])
+            }
+          }}
+        />
+      )}
 
       {showInstructions && (
         <div

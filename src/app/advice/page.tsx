@@ -247,9 +247,13 @@ export default function AdvicePage() {
   const [showPlanCTA, setShowPlanCTA] = useState(false)
   const [recentCoachTags, setRecentCoachTags] = useState<Array<{ type: string; value: string; confidence: number }>>([])
   const [showCoachDebug, setShowCoachDebug] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Auto-open instructions once (same behavior as onboarding)
   useEffect(() => {
+    // Set page title
+    document.title = "Get Advice - CMC Sober Coach"
+    
     const seen = typeof window !== 'undefined' && window.localStorage.getItem('advice_seen')
     if (!seen) {
       setShowInstr(true)
@@ -386,14 +390,11 @@ export default function AdvicePage() {
       } else {
         throw new Error('offline')
       }
-    } catch {
-      detected = nextPhase === 'SUGGEST_OPTIONS' ? 'ADVICE' : 'FOLLOWUP'
-      const paragraph = buildLocalAdvice(localInput, demo || undefined)
-      assembled = paragraph
-      for (let i = 0; i < paragraph.length; i += 3) {
-        setResponseText(prev => prev + paragraph.slice(i, i + 3))
-        await sleep(12)
-      }
+    } catch (err) {
+      console.error('Error generating advice:', err)
+      setError('Sorry, I encountered an error. Please try again.')
+      setStatus('done')
+      return
     }
 
     const finalText = (assembled || responseText).trim()
@@ -548,14 +549,14 @@ export default function AdvicePage() {
               aria-label="Choose a demo scenario"
             >
               <option value="">Use a demo scenario…</option>
-              <option value="1">#1 Evening Loneliness After Conflict</option>
-              <option value="2">#2 Stress at Work with Overwhelm</option>
-              <option value="3">#3 Anxiety Before Social Event</option>
-              <option value="4">#4 Difficulty Sleeping Due to Worry</option>
-              <option value="5">#5 Feeling Unmotivated to Exercise</option>
-              <option value="6">#6 Struggling with Healthy Eating</option>
-              <option value="7">#7 Difficulty Managing Anger</option>
-              <option value="8">#8 Feeling Isolated and Disconnected</option>
+              <option value="1">Evening Loneliness After Conflict - argued with family, feeling alone</option>
+              <option value="2">Stress at Work with Overwhelm - deadline pressure, can't focus</option>
+              <option value="3">Anxiety Before Social Event - worried about judgment, tempted to cancel</option>
+              <option value="4">Difficulty Sleeping Due to Worry - racing thoughts about family/finances</option>
+              <option value="5">Feeling Unmotivated to Exercise - know it helps but can't get started</option>
+              <option value="6">Struggling with Healthy Eating - reaching for junk food when stressed</option>
+              <option value="7">Difficulty Managing Anger - irritable with loved ones, losing temper</option>
+              <option value="8">Feeling Isolated and Disconnected - lonely, lost touch with friends</option>
             </select>
             
             {/* V1: Manual plan trigger (for testing) */}
@@ -638,6 +639,42 @@ export default function AdvicePage() {
             </div>
           )}
 
+          {/* Error banner */}
+          {error && (
+            <div className="mb-3 p-3 glass-medium border-2 border-red-300 shadow-soft slide-up" style={{ borderRadius: 'var(--radius-lg)', background: 'linear-gradient(135deg, #FEE 0%, #FDD 100%)' }}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm flex-1" style={{ color: '#991B1B' }}>
+                  {error}
+                </p>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-sm font-semibold hover:scale-105 transition-all"
+                  style={{ color: '#991B1B' }}
+                >
+                  ✕
+                </button>
+              </div>
+              <button
+                onClick={() => { setError(null); void generateAdvice(); }}
+                className="mt-2 text-xs font-semibold glass-light border border-red-300 px-3 py-1.5 hover:glass-medium transition-all duration-300"
+                style={{ borderRadius: 'var(--radius-md)', color: '#991B1B' }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Thinking indicator */}
+          {status === 'thinking' && (
+            <div className="mb-3 p-3 glass-light border border-gray-200/30 shadow-soft slide-up flex items-center gap-2" style={{ borderRadius: 'var(--radius-lg)' }}>
+              <svg className="animate-spin h-4 w-4" style={{ color: 'var(--cmc-teal-500)' }} viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Coach is thinking...</span>
+            </div>
+          )}
+
           <ChatPane
             className="mb-3"
             messages={paneMessages}
@@ -645,20 +682,9 @@ export default function AdvicePage() {
             isSending={isBusy}
             inputValue={input}
             onInputChange={setInput}
+            disabled={isBusy}
           />
 
-          <div className="flex gap-2 mt-2 mb-4">
-            <button
-              onClick={() => { if (!isBusy) { setMode('advice') } }}
-              disabled={isBusy}
-              className={`px-3 py-2 rounded-md border ${mode==='advice' ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border-blue-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >Get Advice</button>
-            <button
-              onClick={() => { if (!isBusy) { setMode('chat') } }}
-              disabled={isBusy}
-              className={`px-3 py-2 rounded-md border ${mode==='chat' ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 border-gray-800'} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >Just Chat</button>
-          </div>
 
           {looksCrisis(input) && (
             <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg whitespace-pre-wrap">

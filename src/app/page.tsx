@@ -8,18 +8,35 @@ import TopNav from '@/components/TopNav'
 import logo from '../assets/logo.png'
 
 export default function Home() {
-  const [showModal, setShowModal] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [completedLessons, setCompletedLessons] = useState(0)
 
-  // If you prefer to only show once per session, uncomment below:
-  // useEffect(() => {
-  //   const seen = sessionStorage.getItem('homeSeen')
-  //   if (!seen) {
-  //     setShowModal(true)
-  //     sessionStorage.setItem('homeSeen', '1')
-  //   } else {
-  //     setShowModal(false)
-  //   }
-  // }, [])
+  useEffect(() => {
+    // Set page title
+    document.title = "CMC Sober Coach - Science-Based Support for Lasting Change"
+    
+    // Check if user has dismissed instructions before
+    const dismissed = localStorage.getItem('home_instructions_dismissed')
+    if (!dismissed) {
+      setShowModal(true)
+    }
+
+    // Load completed lessons count
+    const completed = localStorage.getItem('completed_lessons')
+    if (completed) {
+      try {
+        const lessonSlugs = JSON.parse(completed)
+        setCompletedLessons(Array.isArray(lessonSlugs) ? lessonSlugs.length : 0)
+      } catch {
+        setCompletedLessons(0)
+      }
+    }
+  }, [])
+
+  const handleDismissModal = () => {
+    setShowModal(false)
+    localStorage.setItem('home_instructions_dismissed', '1')
+  }
 
   return (
     <div className="h-dvh flex flex-col" style={{ 
@@ -47,9 +64,15 @@ export default function Home() {
             <h1 className="text-2xl sm:text-3xl font-semibold mb-2 text-center text-wrap-anywhere" style={{ color: 'var(--text-primary)' }}>
               Welcome to CMC Sober Coach
             </h1>
-            <p className="text-sm mb-8 text-center" style={{ color: 'var(--text-secondary)' }}>
+            <p className="text-sm mb-2 text-center" style={{ color: 'var(--text-secondary)' }}>
               Science-based support for lasting change
             </p>
+            {completedLessons > 0 && (
+              <p className="text-xs mb-6 text-center px-3 py-1.5 glass-light shadow-soft inline-block" style={{ color: 'var(--text-tertiary)', borderRadius: 'var(--radius-md)' }}>
+                📚 {completedLessons}/40 lessons complete
+              </p>
+            )}
+            {completedLessons === 0 && <div className="mb-8" />}
 
             {/* Big primary button for Onboarding */}
             <Link
@@ -237,7 +260,7 @@ export default function Home() {
 
             <div className="border-t border-gray-200/30 px-5 py-4 flex items-center justify-end gap-3">
               <button
-                onClick={() => setShowModal(false)}
+                onClick={handleDismissModal}
                 className="glass-light border border-gray-200/50 px-4 py-2 text-sm hover:glass-medium hover:glow-teal transition-all duration-300"
                 style={{ 
                   borderRadius: 'var(--radius-md)',
@@ -248,6 +271,7 @@ export default function Home() {
               </button>
               <Link
                 href="/onboarding"
+                onClick={handleDismissModal}
                 className="bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C] px-4 py-2 text-sm text-white font-semibold hover:glow-teal-strong hover:scale-105 active:scale-95 transition-all duration-300"
                 style={{ borderRadius: 'var(--radius-md)' }}
               >
