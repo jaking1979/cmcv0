@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import TopNav from '@/components/TopNav'
+import AvatarTalkingHead from '@/components/AvatarTalkingHead'
 import logo from '../assets/logo.png'
 
 export default function Home() {
@@ -200,16 +201,18 @@ export default function Home() {
           aria-modal="true"
         >
           <div className="w-full max-w-lg glass-strong shadow-medium border border-gray-200/30 max-h-[90vh] flex flex-col scale-in" style={{ borderRadius: 'var(--radius-2xl)' }}>
-            <div className="border-b border-gray-200/30 px-5 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Welcome to CMC Sober Coach</h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="glass-light border border-gray-200/50 px-2 py-1 text-sm hover:glass-medium hover:glow-teal transition-all duration-300"
-                style={{ borderRadius: 'var(--radius-md)' }}
-                aria-label="Close"
-              >
-                ✕
-              </button>
+            {/* Avatar Header */}
+            <div className="p-6 border-b border-gray-200/30" style={{ background: 'linear-gradient(135deg, var(--cmc-teal-200) 0%, var(--lavender-300) 100%)' }}>
+              <div className="flex items-start gap-4">
+                <AvatarTalkingHead speaking={true} size={64} className="shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="glass-strong px-4 py-3 shadow-soft border border-gray-200/30" style={{ borderRadius: 'var(--radius-lg)' }}>
+                    <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                      Hi, I'm Josh, your AI sober coach. Welcome to this demo! I'm here to provide compassionate, science-based support for your recovery journey.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="px-5 py-4 space-y-4 text-sm flex-1 overflow-y-auto" style={{ color: 'var(--text-secondary)' }}>
