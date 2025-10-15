@@ -105,13 +105,16 @@ export default function LessonPlayer({ lesson }: LessonPlayerProps) {
       setCompleted(saved.completed)
       setRedirectCount(saved.redirectCount)
       
-      // If we have transcript, we're not in script mode
-      if (saved.transcript.length > 0) {
+      // Check if we have any USER messages (not just coach intro)
+      const hasUserMessages = saved.transcript.some(m => m.role === 'user')
+      if (hasUserMessages) {
+        // User has interacted, exit script mode
         setInScript(false)
         setVisibleCoachIdx(saved.transcript.filter(m => m.role === 'coach').length - 1)
       } else {
-        // Start fresh - push first script item
-        seedIntro()
+        // Still in script mode, just restore the coach messages
+        setInScript(true)
+        setVisibleCoachIdx(saved.transcript.filter(m => m.role === 'coach').length - 1)
       }
     } else {
       // Start fresh
