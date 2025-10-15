@@ -19,6 +19,68 @@ function hasCrisisTerms(text: string): boolean {
   return CRISIS_TERMS.some((w) => t.includes(w))
 }
 
+function markdownToHtml(md: string): string {
+  const lines = (md || '').split(/\r?\n/)
+  const out: string[] = []
+  let inList = false
+
+  const flushList = () => {
+    if (inList) {
+      out.push('</ul>')
+      inList = false
+    }
+  }
+
+  for (let raw of lines) {
+    const line = raw.trim()
+
+    let m
+    if ((m = /^###\s+(.*)$/.exec(line))) {
+      flushList()
+      out.push(`<h3 class="font-semibold text-base mt-3 mb-1">${escapeHtml(m[1])}</h3>`)
+      continue
+    }
+    if ((m = /^##\s+(.*)$/.exec(line))) {
+      flushList()
+      out.push(`<h2 class="font-semibold text-lg mt-4 mb-2">${escapeHtml(m[1])}</h2>`)
+      continue
+    }
+    if ((m = /^#\s+(.*)$/.exec(line))) {
+      flushList()
+      out.push(`<h1 class="font-bold text-xl mt-4 mb-2">${escapeHtml(m[1])}</h1>`)
+      continue
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      if (!inList) {
+        inList = true
+        out.push('<ul class="list-disc pl-6">')
+      }
+      out.push(`<li>${escapeHtml(line.replace(/^[-*]\s+/, ''))}</li>`)
+      continue
+    } else {
+      flushList()
+    }
+
+    if (line === '') {
+      out.push('<br/>')
+      continue
+    }
+
+    out.push(`<p>${escapeHtml(line)}</p>`)
+  }
+
+  flushList()
+  return out.join('\n').replace(/(?:<br\/>\s*){2,}/g, '<br/>')
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 export default function LessonPlayer({ lesson }: LessonPlayerProps) {
   const router = useRouter()
   const [scriptIndex, setScriptIndex] = useState(0)
@@ -206,7 +268,7 @@ export default function LessonPlayer({ lesson }: LessonPlayerProps) {
   const currentSlide = lesson.lesson_slides[slideIndex] || lesson.lesson_slides[0]
 
   // Navigation logic
-  const canScriptNext = inScript && scriptIndex < lesson.coach_script.length - 1 && !currentStep?.requires_input
+  const canScriptNext = inScript && scriptIndex < lesson.coach_script.length - 1
   const canReviewNext = !inScript && visibleCoachIdx < coachMessages.length - 1
   const canPrev = visibleCoachIdx > 0
 
@@ -269,11 +331,10 @@ export default function LessonPlayer({ lesson }: LessonPlayerProps) {
       <section className="border-b bg-white flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-4 py-3">
           <h1 className="text-xl font-semibold">{currentSlide.title}</h1>
-          <div className="prose prose-sm max-w-none mt-2">
-            {currentSlide.body.split('\n').map((line, idx) => (
-              <p key={idx} className="text-sm text-gray-700">{line}</p>
-            ))}
-          </div>
+          <div 
+            className="prose prose-sm max-w-none mt-2"
+            dangerouslySetInnerHTML={{ __html: markdownToHtml(currentSlide.body) }}
+          />
         </div>
       </section>
 
