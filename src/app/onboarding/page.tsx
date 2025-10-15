@@ -435,9 +435,7 @@ export default function OnboardingPage() {
                 {finalizing ? 'Generating…' : 'Finish & Generate Report'}
               </button>
             </div>
-          </div>
         </div>
-
 
         {/* V1: Legal Disclaimer */}
         {isV1Enabled && showDisclaimer && (
