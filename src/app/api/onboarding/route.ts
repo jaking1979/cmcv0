@@ -387,6 +387,102 @@ function skillsIntercept(history: Msg[], latest: string) {
   return `I hear you wanting something concrete. I can switch to skills right after we capture a couple essentials so the suggestions actually fit you. Could I ask: ${q}`
 }
 
+/* -------- vague-loop detection -------- */
+
+/**
+ * True if a single user message looks like an uncertain / deflecting non-answer.
+ */
+function isVagueResponse(text: string): boolean {
+  const t = (text || '').toLowerCase().trim()
+  return (
+    t.length < 80 &&
+    /\b(i (don'?t|do not) know|idk|i have no (clue|idea)|not sure|i'?m not sure|no idea|i haven'?t thought|i can'?t think|nothing comes to mind|i guess not)\b/.test(t)
+  )
+}
+
+/**
+ * Count how many of the last 3 user messages (plus the current input) were vague.
+ */
+function countRecentVague(prior: Msg[], input: string): number {
+  return prior
+    .filter(m => m.role === 'user')
+    .slice(-3)
+    .concat({ role: 'user', content: input })
+    .filter(m => isVagueResponse(m.content))
+    .length
+}
+
+/* -------- per-turn domain focus hint -------- */
+
+const DOMAIN_HINTS: Record<number, string> = {
+  0: `CURRENT ONBOARDING FOCUS: Opening / Why Now
+Goal: Understand what brought this person here and how they frame the situation in their own words.
+Example stems: "What's been going on that brought you here?" or "What made this feel like the right time to try something different?"
+Do not yet ask about patterns, triggers, solutions, or what would help.`,
+
+  1: `CURRENT ONBOARDING FOCUS: Behavior Pattern
+Goal: Understand what they are using, when, how often, and roughly how much — in their own words.
+Example stems: "What does a typical week look like for you?" or "When you do drink, roughly how much tends to happen?"
+Do not ask what would help or what might change. Gather information only.`,
+
+  2: `CURRENT ONBOARDING FOCUS: Function (What does it give them?)
+Goal: Understand what the behavior does for them in the short term — relief, connection, escape, routine, reward.
+Example stems: "What does drinking do for you in the moment?" or "What does it give you that's hard to get another way?"
+Do not name the function for them. Do not move to costs yet. Do not ask what they could do instead.`,
+
+  3: `CURRENT ONBOARDING FOCUS: Costs and Consequences
+Goal: Let them name what concerns or bothers them — do not list impacts for them.
+Example stems: "What, if anything, has felt harder because of your drinking?" or "Has anything shifted lately that you've noticed?"
+Sit with ambivalence. Do not reassure or suggest. Do not ask what would help.`,
+
+  4: `CURRENT ONBOARDING FOCUS: Motivation and Goals
+Goal: Understand what they want and what a good outcome looks like in their own words.
+Example stems: "What are you hoping things look like when this goes well?" or "What would feel different in your day-to-day life if things improved?"
+Do not push toward change or a specific goal type. Accept "I don't know" and note it.`,
+
+  5: `CURRENT ONBOARDING FOCUS: Identity and Meaning
+Goal: Explore who they are, what this means to their sense of self, who they want to be.
+Example stems: "What does this feel like it means about you, if anything?" or "Is there a version of yourself connected to this that feels important to understand?"
+Explore gently. Do not interpret, resolve, or reframe. Do not ask what they could do differently.`,
+
+  6: `CURRENT ONBOARDING FOCUS: Supports and Resources
+Goal: Map who or what helps them, even a little — people, routines, places, prior efforts.
+Example stems: "Is there anyone who makes it a bit easier?" or "Have there been times — even briefly — when things went better? What was different then?"
+Do not frame absence of support as a deficit. Accept "nothing" without pushing. Do not ask what would help going forward.`,
+
+  7: `CURRENT ONBOARDING FOCUS: Strengths and Prior Navigation
+Goal: Surface what they have already tried, what capacity they have, what they've managed before.
+Example stems: "Have you gotten through a stretch without drinking before, even briefly? What made that possible?" or "What have you tried, even if it didn't stick?"
+Do not praise or cheerlead. If they minimize a past effort, explore what they actually did — not just the outcome.`,
+
+  8: `CURRENT ONBOARDING FOCUS: Readiness and Ambivalence
+Goal: Understand where they are right now — not to resolve ambivalence but to understand it.
+Example stems: "How does it feel right now — is part of you still unsure about this?" or "What pulls you toward trying, and what pulls you back?"
+Reflect both sides. Do not push toward change. Do not insert change talk.`,
+
+  9: `CURRENT ONBOARDING FOCUS: Communication Style and Closing
+Goal: Understand how they prefer to receive support, then move toward a summary offer.
+Example stems: "When you're working through something tough, do you find it more helpful when someone gets practical, or when they help you think it through?" or "Is there anything about how you'd like me to talk to you that would help?"
+This is the final intake domain. After this, offer a summary.`,
+}
+
+const VAGUE_LOOP_ADDITION = `
+VAGUE LOOP DETECTED: The user has given uncertain or deflecting answers more than once.
+— Try a concrete reframe: "Even just thinking about last week — was there one particular night that stands out?"
+— Or a different angle: "Is it easier to talk about what happens before you drink, or what happens after?"
+— If the next answer is also vague, accept low confidence for this domain and move on to the next one.
+Do NOT repeat the same question in different words. Do NOT ask "what might help" or "what could change".`
+
+/**
+ * Build a short, directive system message telling the model which domain
+ * is currently in focus and what a useful next question looks like.
+ * Injected as a system message immediately before the user's latest input.
+ */
+function buildDomainHint(segment: number, vagueCount: number): string {
+  const base = DOMAIN_HINTS[Math.min(segment, 9)] ?? DOMAIN_HINTS[9]
+  return vagueCount >= 2 ? base + VAGUE_LOOP_ADDITION : base
+}
+
 /* Fallback if OpenAI ever returns empty */
 function buildFallback(input: string) {
   const t = (input || '').trim()
@@ -400,7 +496,7 @@ function buildFallback(input: string) {
 }
 
 /* Single, non-streaming call with a generous timeout */
-async function callOpenAI(messages: Msg[], max_tokens = 650) {
+async function callOpenAI(messages: Msg[], max_tokens = 650, temperature = 0.7) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 90_000)
 
@@ -413,7 +509,7 @@ async function callOpenAI(messages: Msg[], max_tokens = 650) {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        temperature: 0.7,
+        temperature,
         stream: false,
         max_tokens,
         messages,
@@ -550,9 +646,17 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Regular onboarding turn
-    const convo: Msg[] = [...base, ...prior, { role: 'user', content: input || '' }]
-    const text = await callOpenAI(convo, 500)
+    // Regular onboarding turn — inject per-turn domain focus hint before user message
+    const vagueCount = countRecentVague(prior, input)
+    const domainHint = buildDomainHint(currentSegment, vagueCount)
+    const convo: Msg[] = [
+      ...base,
+      ...prior,
+      { role: 'system', content: domainHint },
+      { role: 'user', content: input || '' },
+    ]
+    // Lower temperature for structured intake — reduces improvisational drift
+    const text = await callOpenAI(convo, 500, 0.4)
 
     if (!text) {
       const fb = buildFallback(input || '')
