@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import TopNav from '@/components/TopNav'
 import BottomNav, { NavSpacer } from '@/components/BottomNav'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 function FeatureCard({
   href,
@@ -54,6 +55,78 @@ function FeatureCard({
         <polyline points="9 18 15 12 9 6" />
       </svg>
     </Link>
+  )
+}
+
+function NotificationToggle() {
+  const { state, error, subscribe, unsubscribe } = usePushNotifications()
+
+  if (state === 'unsupported') return null
+
+  const isLoading = state === 'loading'
+  const isSubscribed = state === 'subscribed'
+  const isDenied = state === 'denied'
+
+  return (
+    <div
+      className="flex items-center gap-4 p-4 rounded-2xl"
+      style={{
+        background: 'white',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04)',
+      }}
+    >
+      <div
+        className="shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center text-xl"
+        style={{ background: 'var(--bg-primary)' }}
+      >
+        🔔
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Push Notifications
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+          {isDenied
+            ? 'Blocked in browser settings — tap to change'
+            : isSubscribed
+            ? 'You\'ll get gentle check-ins from your coach'
+            : 'Get gentle reminders and check-ins'}
+        </p>
+        {error && (
+          <p className="text-xs mt-1" style={{ color: '#dc2626' }}>
+            {error}
+          </p>
+        )}
+      </div>
+
+      {/* Toggle switch */}
+      {!isDenied && (
+        <button
+          onClick={isSubscribed ? unsubscribe : subscribe}
+          disabled={isLoading}
+          aria-label={isSubscribed ? 'Turn off notifications' : 'Turn on notifications'}
+          className="shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50"
+          style={{
+            background: isSubscribed ? 'var(--cmc-teal-500, #0d9488)' : 'rgba(0,0,0,0.12)',
+          }}
+        >
+          <span
+            className="inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+            style={{ transform: isSubscribed ? 'translateX(24px)' : 'translateX(4px)' }}
+          />
+        </button>
+      )}
+
+      {isDenied && (
+        <button
+          onClick={() => window.open('about:blank')} // prompt user to open settings
+          className="shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium"
+          style={{ background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}
+        >
+          Settings
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -125,6 +198,12 @@ export default function ProfilePage() {
               description="Personalized strategies based on your conversations"
             />
           </div>
+        </div>
+
+        {/* Notifications section */}
+        <div className="mb-6">
+          <SectionLabel>Notifications</SectionLabel>
+          <NotificationToggle />
         </div>
 
         {/* Safety section */}
