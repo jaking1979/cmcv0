@@ -7,7 +7,7 @@
  */
 
 import type { CoachMessage } from '../types'
-import type { OnboardingFormulation, SegmentCoverage, CoverageStatus } from '../types'
+import type { OnboardingFormulation, SegmentCoverage, SegmentSignalLevel, ConfidenceLevel } from '../types'
 import { createEmptyFormulation } from '../types'
 import { CRISIS_AND_SCOPE_GUARDRAILS } from '../promptFragments'
 
@@ -153,51 +153,68 @@ IMPORTANT GUIDELINES:
 export function inferSegmentCoverage(transcript: string): SegmentCoverage {
   const t = transcript.toLowerCase()
 
-  function covered(patterns: RegExp[]): CoverageStatus {
+  function signal(patterns: RegExp[]): SegmentSignalLevel {
     const matches = patterns.filter(p => p.test(t)).length
-    if (matches === 0) return 'not_started'
-    if (matches >= 2) return 'complete'
-    return 'partial'
+    if (matches === 0) return 'none'
+    if (matches >= 2) return 'high'
+    return 'medium'
   }
 
+  const seg1: SegmentSignalLevel = transcript.length > 50 ? 'high' : 'none'
+  const seg2 = signal([
+    /drink|use|smoke|take|using|alcohol|cannabis|weed|opioid|cocaine|meth|pill/,
+    /every day|daily|weekly|times a (day|week)|how (much|often)|typical week/,
+  ])
+  const seg3 = signal([
+    /relax|calm|numbs?|takes? (the )?edge|feel(s)? better|helps? me|escape|forget|cope|relief|wind down|unwinding|unwind|socialize/,
+    /why.*use|what.*does.*give|what.*do.*for you|short.?term|what it gives/,
+  ])
+  const seg4 = signal([
+    /hangover|withdrawal|dope.?sick|tolerance|black(out|ed)|sleep|health|relationship|partner|kids?|job|work|boss|late|promotion|legal|court|probation|money|broke|finances?/,
+    /consequence|impact|downside|cost|harm|problem|difficult|worse/,
+  ])
+  const seg5 = signal([
+    /want to (stop|quit|cut|reduce|moderate|abstain|change)/,
+    /goal|hoping for|ideal|ambiv|not sure (what|if)|undecided|figure it out/,
+  ])
+  const seg6 = signal([
+    /who i am|who i.?d be|my identity|part of me|defines? me|without (drinking|using|it)|always been|how i see myself/,
+    /identity|sense of (self|who)|i.?m (not )?(just |really )?(a |an )?(drinker|user|addict|alcoholic)/,
+  ])
+  const seg7 = signal([
+    /helps|what.*helps|support|friend|family|partner|routine|gym|walk|meeting/,
+    /sober|clean|made it through|good day|what works/,
+  ])
+  const seg8 = signal([
+    /tried before|cut back before|quit for|was sober|i can|i.?ve managed|proud|strong|resilient|value|good at|worked hard|fought through|pushed through|survived/,
+    /strength|resilience|past success|what worked/,
+  ])
+  const seg9 = signal([
+    /ready|not ready|thinking about|considering|want to change|don.?t want to|part of me wants|ambivalen|not sure (if|whether)|on the fence|maybe|someday|not yet/,
+    /readiness|contemplat|precontemplat|preparation|ambivalence/,
+  ])
+  const seg10 = signal([
+    /summary|intake|wrap.?up|reflect back|does that feel|what i.?m hearing/,
+    /good picture|accurate|first pass|starting point|direct|practical|reflective|gentle|prefer.*support|feedback style/,
+  ])
+
+  const all = [seg1, seg2, seg3, seg4, seg5, seg6, seg7, seg8, seg9, seg10]
+  const highCount = all.filter(s => s === 'high').length
+  const overall: ConfidenceLevel = highCount >= 7 ? 'high' : highCount >= 4 ? 'medium' : 'low'
+
   return {
-    seg0_opening: transcript.length > 50 ? 'complete' : 'not_started',
-    seg1_why_now: covered([
-      /brought you here|what brings you|hoping.*help|why.*now|what.*going on/,
-      /came here because|hoping to|want to (change|stop|quit|cut|get help)/,
-    ]),
-    seg2_current_use: covered([
-      /drink|use|smoke|take|using|alcohol|cannabis|weed|opioid|cocaine|meth|pill/,
-      /every day|daily|weekly|times a (day|week)|how (much|often)|typical week/,
-    ]),
-    seg3_goals: covered([
-      /want to (stop|quit|cut|reduce|moderate|abstain|change)/,
-      /goal|hoping for|ideal|ambiv|not sure (what|if)|undecided|figure it out/,
-    ]),
-    seg4_risk_map: covered([
-      /trigger|urge|craving|hard to|makes it harder|set.*off|urge.*to use/,
-      /stress|anxiety|bored|lonely|social|evening|night|work|fight|argument/,
-    ]),
-    seg5_protection_map: covered([
-      /helps|what.*helps|support|friend|family|partner|routine|gym|walk|meeting/,
-      /sober|clean|made it through|good day|what works/,
-    ]),
-    seg6_skills_map: covered([
-      /cope|coping|strategy|strategies|skill|what do you do|deal with|handle/,
-      /mindful|breath|self.compassion|hard on yourself|plan|structure|body/,
-    ]),
-    seg7_communication: covered([
-      /direct|practical|reflective|gentle|talk to (you|me)|prefer|feedback style/,
-      /give it to me straight|help me think|just tell me/,
-    ]),
-    seg8_safety: covered([
-      /safe|safety|overdose|withdrawal|blackout|alone|mixing|suicid|harm yourself/,
-      /physically unsafe|medical|dangerous|domestic|abuse/,
-    ]),
-    seg9_summary: covered([
-      /summary|intake|wrap.?up|reflect back|does that feel|what i'm hearing/,
-      /good picture|accurate|first pass|starting point/,
-    ]),
+    seg1_opening: seg1,
+    seg2_behavior_pattern: seg2,
+    seg3_function: seg3,
+    seg4_costs: seg4,
+    seg5_motivation: seg5,
+    seg6_identity: seg6,
+    seg7_supports: seg7,
+    seg8_strengths: seg8,
+    seg9_readiness: seg9,
+    seg10_closing: seg10,
+    segments_with_high_signal: highCount,
+    overall_coverage: overall,
   }
 }
 
@@ -260,25 +277,23 @@ export async function mapTranscriptToFormulation(
     risk_map: { ...base.risk_map, ...(raw.risk_map ?? {}) },
     protection_map: { ...base.protection_map, ...(raw.protection_map ?? {}) },
     coach_profiles: {
-      mi: { ...base.coach_profiles.mi, ...(raw.coach_profiles?.mi ?? {}) },
-      act: { ...base.coach_profiles.act, ...(raw.coach_profiles?.act ?? {}) },
-      dbt: { ...base.coach_profiles.dbt, ...(raw.coach_profiles?.dbt ?? {}) },
-      mindfulness: { ...base.coach_profiles.mindfulness, ...(raw.coach_profiles?.mindfulness ?? {}) },
-      self_compassion: { ...base.coach_profiles.self_compassion, ...(raw.coach_profiles?.self_compassion ?? {}) },
-      executive_support: { ...base.coach_profiles.executive_support, ...(raw.coach_profiles?.executive_support ?? {}) },
+      readiness:      { ...base.coach_profiles.readiness,      ...(raw.coach_profiles?.readiness      ?? {}) },
+      self_compassion:{ ...base.coach_profiles.self_compassion,..,(raw.coach_profiles?.self_compassion ?? {}) },
+      distress:       { ...base.coach_profiles.distress,       ...(raw.coach_profiles?.distress       ?? {}) },
+      coping:         { ...base.coach_profiles.coping,         ...(raw.coach_profiles?.coping         ?? {}) },
+      substance:      { ...base.coach_profiles.substance,      ...(raw.coach_profiles?.substance      ?? {}) },
+      life_domains:   { ...base.coach_profiles.life_domains,   ...(raw.coach_profiles?.life_domains   ?? {}) },
     },
     communication_profile: { ...base.communication_profile, ...(raw.communication_profile ?? {}) },
     safety_flags: { ...base.safety_flags, ...(raw.safety_flags ?? {}) },
-    confidence_summary: { ...base.confidence_summary, ...(raw.confidence_summary ?? {}) },
+    confidence_summary: {
+      ...base.confidence_summary,
+      ...(raw.confidence_summary ?? {}),
+      per_domain: { ...base.confidence_summary.per_domain, ...(raw.confidence_summary?.per_domain ?? {}) },
+    },
     behavioral_dimensions: {
       ...base.behavioral_dimensions,
       ...(raw.behavioral_dimensions ?? {}),
-      impulse_reflection: { ...base.behavioral_dimensions.impulse_reflection, ...(raw.behavioral_dimensions?.impulse_reflection ?? {}) },
-      solo_social_coping: { ...base.behavioral_dimensions.solo_social_coping, ...(raw.behavioral_dimensions?.solo_social_coping ?? {}) },
-      avoidance_approach: { ...base.behavioral_dimensions.avoidance_approach, ...(raw.behavioral_dimensions?.avoidance_approach ?? {}) },
-      planned_in_moment: { ...base.behavioral_dimensions.planned_in_moment, ...(raw.behavioral_dimensions?.planned_in_moment ?? {}) },
-      relief_seeking_values_guided: { ...base.behavioral_dimensions.relief_seeking_values_guided, ...(raw.behavioral_dimensions?.relief_seeking_values_guided ?? {}) },
-      prefers_direct_feedback: { ...base.behavioral_dimensions.prefers_direct_feedback, ...(raw.behavioral_dimensions?.prefers_direct_feedback ?? {}) },
     },
     segment_coverage: segmentCoverage,
   }
@@ -319,43 +334,43 @@ export async function mapTranscriptToProfile(
 ): Promise<OnboardingProfile> {
   const formulation = await mapTranscriptToFormulation(sessionId, transcript)
 
-  // Map formulation back to legacy shape for existing consumers
-  const miConf = formulation.coach_profiles.mi.confidence === 'High' ? 0.9
-    : formulation.coach_profiles.mi.confidence === 'Medium' ? 0.6 : 0.3
-  const scConf = formulation.coach_profiles.self_compassion.confidence === 'High' ? 0.9
-    : formulation.coach_profiles.self_compassion.confidence === 'Medium' ? 0.6 : 0.3
-  const dbtConf = formulation.coach_profiles.dbt.confidence === 'High' ? 0.9
-    : formulation.coach_profiles.dbt.confidence === 'Medium' ? 0.6 : 0.3
-  const safetyConf = formulation.confidence_summary.safety_flags === 'High' ? 0.9
-    : formulation.confidence_summary.safety_flags === 'Medium' ? 0.6 : 0.3
-  const useConf = formulation.confidence_summary.current_use === 'High' ? 0.9
-    : formulation.confidence_summary.current_use === 'Medium' ? 0.6 : 0.3
-  const overallConf = formulation.confidence_summary.overall === 'High' ? 0.9
-    : formulation.confidence_summary.overall === 'Medium' ? 0.6 : 0.3
+  // Map new formulation schema back to legacy shape for existing consumers.
+  function confToNum(c: string | undefined): number {
+    if (c === 'high') return 0.9
+    if (c === 'medium') return 0.6
+    return 0.3
+  }
+
+  const readinessConf = confToNum(formulation.coach_profiles.readiness.confidence)
+  const scConf       = confToNum(formulation.coach_profiles.self_compassion.confidence)
+  const copingConf   = confToNum(formulation.coach_profiles.coping.confidence)
+  const safetyConf   = confToNum(formulation.confidence_summary.per_domain.safety)
+  const useConf      = confToNum(formulation.confidence_summary.per_domain.current_use)
+  const overallConf  = confToNum(formulation.confidence_summary.overall)
 
   return {
     sessionId,
     timestamp: formulation.timestamp,
     constructs: {
       selfCompassion: { ...formulation.coach_profiles.self_compassion },
-      urica: { stage: formulation.coach_profiles.mi.readiness, confidence: miConf },
+      urica: { stage: formulation.coach_profiles.readiness.stage ?? null, confidence: readinessConf },
       kessler10: { distressLevel: null },
       who5: { wellbeingLevel: null },
-      dbtWccl: { ...formulation.coach_profiles.dbt },
-      copingSelfEfficacy: { ...formulation.coach_profiles.executive_support },
+      dbtWccl: { ...formulation.coach_profiles.coping },
+      copingSelfEfficacy: { ...formulation.coach_profiles.coping },
       assist: {
-        substanceType: formulation.current_use.substances.map(s => s.name),
-        riskLevel: formulation.safety_flags.acute_risk_level,
+        substanceType: formulation.current_use.substances,
+        riskLevel: formulation.coach_profiles.substance.risk_level ?? null,
       },
       asi: { ...formulation.protection_map },
     },
     confidence: {
       selfCompassion: scConf,
-      urica: miConf,
+      urica: readinessConf,
       kessler10: 0,
       who5: 0,
-      dbtWccl: dbtConf,
-      copingSelfEfficacy: dbtConf,
+      dbtWccl: copingConf,
+      copingSelfEfficacy: copingConf,
       assist: useConf,
       asi: safetyConf,
       overall: overallConf,

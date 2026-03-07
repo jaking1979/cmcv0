@@ -75,281 +75,10 @@ export interface OnboardingProfile {
   rawTranscript: string
 }
 
-// ─── V1 OnboardingFormulation ────────────────────────────────────────────────
-// The authoritative typed schema produced by the v1 onboarding flow.
-// All fields are provisional and heuristic — not validated clinical scores.
+// ─── V1 OnboardingFormulation — Canonical Typed Schema ───────────────────────
+// Authoritative schema produced by the v1 onboarding flow.
+// All fields are provisional and heuristic — not clinically validated.
 // See docs/v1_onboarding_spec.md for the full specification.
-
-export type ProfileBand = 'Low' | 'Emerging' | 'Moderate' | 'Strong'
-export type ConfidenceLevel = 'Low' | 'Medium' | 'High'
-export type CoverageStatus = 'not_started' | 'partial' | 'complete'
-
-export interface SubstanceEntry {
-  name: string
-  frequency: string | null
-  amount_description: string | null
-  route: string | null
-}
-
-export interface CurrentUse {
-  substances: SubstanceEntry[]
-  pattern_consistency: 'daily' | 'heavy_episodic' | 'irregular' | 'unknown' | null
-  recent_change_direction: 'increasing' | 'decreasing' | 'stable' | 'unknown' | null
-  functional_impact: string | null
-  disclosure_confidence: ConfidenceLevel
-}
-
-export interface IdealGoal {
-  goal_type: 'abstinence' | 'moderation' | 'reduction' | 'harm_reduction' | 'undecided' | null
-  goal_specificity: 'clear' | 'vague' | 'none' | null
-  user_stated_goal: string | null
-  moderation_vision: string | null
-  ambivalence_level: ProfileBand
-  values_signals: string[]
-  prior_attempts: boolean | null
-  prior_attempt_description: string | null
-}
-
-export interface TriggerEntry {
-  category: 'emotional' | 'situational' | 'relational' | 'sensory' | 'temporal'
-  description: string
-}
-
-export interface RiskMap {
-  triggers: TriggerEntry[]
-  high_risk_times: string[]
-  high_risk_places: string[]
-  emotional_drivers: string[]
-  social_risk_factors: string[]
-  craving_pattern: 'sudden' | 'gradual' | 'situational' | 'mixed' | null
-  habitual_pattern: boolean
-  recent_high_risk_event: boolean
-}
-
-export interface ProtectionMap {
-  supportive_people: string[]
-  supportive_places: string[]
-  protective_routines: string[]
-  emotional_anchors: string[]
-  prior_successes: string[]
-  prior_attempts_failed: boolean
-  coping_resources_present: boolean
-  professional_support_current: boolean
-  professional_support_type: string | null
-}
-
-export interface MIProfile {
-  motivation_level: ProfileBand
-  readiness: ProfileBand
-  ambivalence_tolerance: ProfileBand
-  confidence: ConfidenceLevel
-}
-
-export interface ACTProfile {
-  values_clarity: ProfileBand
-  psychological_flexibility: ProfileBand
-  experiential_avoidance: ProfileBand
-  confidence: ConfidenceLevel
-}
-
-export interface DBTProfile {
-  distress_tolerance: ProfileBand
-  emotion_regulation: ProfileBand
-  interpersonal_effectiveness: ProfileBand
-  mindfulness_skills: ProfileBand
-  confidence: ConfidenceLevel
-}
-
-export interface MindfulnessProfile {
-  interoceptive_awareness: ProfileBand
-  present_moment_attention: ProfileBand
-  nonjudgmental_stance: ProfileBand
-  confidence: ConfidenceLevel
-}
-
-export interface SelfCompassionProfile {
-  self_kindness: ProfileBand
-  common_humanity: ProfileBand
-  lapse_recover_style: 'learn' | 'collapse' | 'mixed' | null
-  inner_critic_intensity: ProfileBand
-  confidence: ConfidenceLevel
-}
-
-export interface ExecutiveSupportProfile {
-  planning_capacity: ProfileBand
-  follow_through: ProfileBand
-  impulse_gap: ProfileBand
-  structure_need: ProfileBand
-  confidence: ConfidenceLevel
-}
-
-export interface CoachProfiles {
-  mi: MIProfile
-  act: ACTProfile
-  dbt: DBTProfile
-  mindfulness: MindfulnessProfile
-  self_compassion: SelfCompassionProfile
-  executive_support: ExecutiveSupportProfile
-}
-
-export interface CommunicationProfile {
-  style: 'direct' | 'reflective' | 'mixed' | null
-  preferred_depth: 'surface' | 'moderate' | 'deep' | null
-  verbosity: 'brief' | 'moderate' | 'verbose' | null
-  help_seeking_style: 'instrumental' | 'exploratory' | 'mixed' | null
-  challenge_tolerance: 'low' | 'moderate' | 'high' | null
-  shame_sensitivity: 'low' | 'moderate' | 'high' | null
-  engagement_level: 'low' | 'moderate' | 'high' | null
-}
-
-export interface SafetyFlags {
-  suicidal_ideation: boolean
-  self_harm_risk: boolean
-  overdose_history: boolean
-  overdose_recent: boolean
-  withdrawal_risk: boolean
-  withdrawal_medically_complex: boolean
-  blackout_risk: boolean
-  using_alone: boolean
-  polysubstance: boolean
-  dv_risk: boolean
-  acute_risk_level: 'none' | 'low' | 'moderate' | 'high'
-  safety_notes: string | null
-}
-
-export interface ConfidenceSummary {
-  current_use: ConfidenceLevel
-  ideal_goal: ConfidenceLevel
-  risk_map: ConfidenceLevel
-  protection_map: ConfidenceLevel
-  coach_profiles: ConfidenceLevel
-  communication_profile: ConfidenceLevel
-  safety_flags: ConfidenceLevel
-  overall: ConfidenceLevel
-  low_confidence_domains: string[]
-}
-
-export interface DimensionScore {
-  value: number | null  // 1–5 scale
-  confidence: ConfidenceLevel
-}
-
-export interface BehavioralDimensions {
-  impulse_reflection: DimensionScore         // 1=impulse, 5=reflection
-  solo_social_coping: DimensionScore         // 1=solo, 5=social
-  avoidance_approach: DimensionScore         // 1=avoidance, 5=approach
-  planned_in_moment: DimensionScore          // 1=in-the-moment, 5=planned
-  relief_seeking_values_guided: DimensionScore // 1=relief, 5=values-guided
-  lapse_recovery_style: 'learn' | 'collapse' | 'mixed' | null
-  prefers_direct_feedback: DimensionScore    // 1=gentle, 5=direct
-  confidence: ConfidenceLevel
-}
-
-export interface SegmentCoverage {
-  seg0_opening: CoverageStatus
-  seg1_why_now: CoverageStatus
-  seg2_current_use: CoverageStatus
-  seg3_goals: CoverageStatus
-  seg4_risk_map: CoverageStatus
-  seg5_protection_map: CoverageStatus
-  seg6_skills_map: CoverageStatus
-  seg7_communication: CoverageStatus
-  seg8_safety: CoverageStatus
-  seg9_summary: CoverageStatus
-}
-
-export interface OnboardingFormulation {
-  session_id: string
-  timestamp: number
-  schema_version: string  // "1.0"
-  current_use: CurrentUse
-  ideal_goal: IdealGoal
-  risk_map: RiskMap
-  protection_map: ProtectionMap
-  coach_profiles: CoachProfiles
-  communication_profile: CommunicationProfile
-  safety_flags: SafetyFlags
-  confidence_summary: ConfidenceSummary
-  behavioral_dimensions: BehavioralDimensions
-  segment_coverage: SegmentCoverage
-}
-
-/** Build a blank OnboardingFormulation with all fields at defaults/null */
-export function createEmptyFormulation(session_id: string): OnboardingFormulation {
-  const defaultBand: ProfileBand = 'Low'
-  const defaultConf: ConfidenceLevel = 'Low'
-  const defaultDim: DimensionScore = { value: null, confidence: 'Low' }
-  return {
-    session_id,
-    timestamp: Date.now(),
-    schema_version: '1.0',
-    current_use: {
-      substances: [], pattern_consistency: null,
-      recent_change_direction: null, functional_impact: null,
-      disclosure_confidence: 'Low',
-    },
-    ideal_goal: {
-      goal_type: null, goal_specificity: null, user_stated_goal: null,
-      moderation_vision: null, ambivalence_level: defaultBand,
-      values_signals: [], prior_attempts: null, prior_attempt_description: null,
-    },
-    risk_map: {
-      triggers: [], high_risk_times: [], high_risk_places: [],
-      emotional_drivers: [], social_risk_factors: [],
-      craving_pattern: null, habitual_pattern: false, recent_high_risk_event: false,
-    },
-    protection_map: {
-      supportive_people: [], supportive_places: [], protective_routines: [],
-      emotional_anchors: [], prior_successes: [], prior_attempts_failed: false,
-      coping_resources_present: false, professional_support_current: false,
-      professional_support_type: null,
-    },
-    coach_profiles: {
-      mi: { motivation_level: defaultBand, readiness: defaultBand, ambivalence_tolerance: defaultBand, confidence: defaultConf },
-      act: { values_clarity: defaultBand, psychological_flexibility: defaultBand, experiential_avoidance: defaultBand, confidence: defaultConf },
-      dbt: { distress_tolerance: defaultBand, emotion_regulation: defaultBand, interpersonal_effectiveness: defaultBand, mindfulness_skills: defaultBand, confidence: defaultConf },
-      mindfulness: { interoceptive_awareness: defaultBand, present_moment_attention: defaultBand, nonjudgmental_stance: defaultBand, confidence: defaultConf },
-      self_compassion: { self_kindness: defaultBand, common_humanity: defaultBand, lapse_recover_style: null, inner_critic_intensity: defaultBand, confidence: defaultConf },
-      executive_support: { planning_capacity: defaultBand, follow_through: defaultBand, impulse_gap: defaultBand, structure_need: defaultBand, confidence: defaultConf },
-    },
-    communication_profile: {
-      style: null, preferred_depth: null, verbosity: null,
-      help_seeking_style: null, challenge_tolerance: null,
-      shame_sensitivity: null, engagement_level: null,
-    },
-    safety_flags: {
-      suicidal_ideation: false, self_harm_risk: false,
-      overdose_history: false, overdose_recent: false,
-      withdrawal_risk: false, withdrawal_medically_complex: false,
-      blackout_risk: false, using_alone: false, polysubstance: false, dv_risk: false,
-      acute_risk_level: 'none', safety_notes: null,
-    },
-    confidence_summary: {
-      current_use: defaultConf, ideal_goal: defaultConf, risk_map: defaultConf,
-      protection_map: defaultConf, coach_profiles: defaultConf,
-      communication_profile: defaultConf, safety_flags: defaultConf,
-      overall: defaultConf, low_confidence_domains: [],
-    },
-    behavioral_dimensions: {
-      impulse_reflection: defaultDim, solo_social_coping: defaultDim,
-      avoidance_approach: defaultDim, planned_in_moment: defaultDim,
-      relief_seeking_values_guided: defaultDim, lapse_recovery_style: null,
-      prefers_direct_feedback: defaultDim, confidence: defaultConf,
-    },
-    segment_coverage: {
-      seg0_opening: 'not_started', seg1_why_now: 'not_started',
-      seg2_current_use: 'not_started', seg3_goals: 'not_started',
-      seg4_risk_map: 'not_started', seg5_protection_map: 'not_started',
-      seg6_skills_map: 'not_started', seg7_communication: 'not_started',
-      seg8_safety: 'not_started', seg9_summary: 'not_started',
-    },
-  }
-}
-
-// ── V1 OnboardingFormulation — Canonical Typed Schema ────────────────────────
-//
-// Replaces/extends the loose OnboardingProfile with a fully structured
-// formulation aligned to the 10-segment ITC onboarding flow.
 
 export type ConfidenceLevel = 'low' | 'medium' | 'high'
 export type ProfileBand = 'low' | 'emerging' | 'moderate' | 'strong'
@@ -534,6 +263,55 @@ export interface OnboardingFormulation {
   confidence_summary: ConfidenceSummary
   behavioral_dimensions: BehavioralDimensions
   segment_coverage: SegmentCoverage
+}
+
+/** Build a blank OnboardingFormulation with all fields at safe defaults. */
+export function createEmptyFormulation(session_id: string): OnboardingFormulation {
+  const c: ConfidenceLevel = 'low'
+  const b: ProfileBand = 'low'
+  return {
+    session_id,
+    timestamp: Date.now(),
+    schema_version: '1.0',
+    current_use: { substances: [], confidence: c },
+    ideal_goal: { confidence_level: c },
+    risk_map: { severity_band: b, harm_domains: {}, confidence: c },
+    protection_map: { confidence: c },
+    coach_profiles: {
+      readiness: { ambivalence_present: false, change_talk_present: false, sustain_talk_present: false, confidence: c },
+      self_compassion: { critical_self_talk_present: false, shame_language_present: false, confidence: c },
+      distress: { confidence: c },
+      coping: { avoidance_present: false, confidence: c },
+      substance: { poly_substance: false, confidence: c },
+      life_domains: { confidence: c },
+    },
+    communication_profile: { confidence: c },
+    safety_flags: {
+      suicidality: false, self_harm: false, overdose_risk: false,
+      withdrawal_risk: false, blackout_pattern: false, poly_substance: false,
+      domestic_violence: false, medical_urgency: false,
+    },
+    confidence_summary: {
+      overall: c,
+      per_domain: {
+        current_use: c, ideal_goal: c, risk_map: c, protection_map: c,
+        readiness: c, self_compassion: c, distress: c, coping: c,
+        substance: c, life_domains: c, communication: c, safety: c,
+      },
+      missing_domains: [],
+    },
+    behavioral_dimensions: {
+      impulse_to_reflection: null, avoidance_to_approach: null,
+      isolation_to_connection: null, rigidity_to_flexibility: null,
+      shame_to_self_compassion: null, confidence: c,
+    },
+    segment_coverage: {
+      seg1_opening: 'none', seg2_behavior_pattern: 'none', seg3_function: 'none',
+      seg4_costs: 'none', seg5_motivation: 'none', seg6_identity: 'none',
+      seg7_supports: 'none', seg8_strengths: 'none', seg9_readiness: 'none',
+      seg10_closing: 'none', segments_with_high_signal: 0, overall_coverage: 'low',
+    },
+  }
 }
 
 // ── Feature flag types ────────────────────────────────────────────────────────
