@@ -120,9 +120,6 @@ export function InstallPromptModal() {
 
   // Decide whether to show
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InstallPromptModal.tsx:useEffect',message:'Install modal platform detection',data:{ua:navigator.userAgent,alreadyInstalled:isAlreadyInstalled(),dismissed:!!(sessionStorage.getItem(STORAGE_KEY)||localStorage.getItem(STORAGE_KEY)),platform:detectPlatform()},hypothesisId:'H-C',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (isAlreadyInstalled()) return;
     if (sessionStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY)) return;
 

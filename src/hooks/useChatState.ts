@@ -177,10 +177,6 @@ export function useChatState(): ChatStateReturn {
 
     setStatus('thinking')
 
-    // #region agent log
-    console.log('[DEBUG useChatState.send] appStage=', appStage, 'endpoint will be:', appStage === 'ONBOARDING' ? '/api/onboarding' : '/api/advice')
-    // #endregion
-
     try {
       const isOnboarding = appStage === 'ONBOARDING'
       const res = await fetch(isOnboarding ? '/api/onboarding' : '/api/advice', {

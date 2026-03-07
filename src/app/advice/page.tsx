@@ -80,9 +80,6 @@ export default function AdvicePage() {
   }, [updateMemory, setAppStage])
 
   const handleChoose = useCallback((choice: 'onboarding' | 'talk-now' | 'team-intro') => {
-    // #region agent log
-    console.log('[DEBUG handleChoose] choice=', choice, 'at', new Date().toISOString())
-    // #endregion
     updateMemory({ firstRunChoiceMade: choice })
     if (choice === 'talk-now') {
       enterLightChat()
@@ -91,9 +88,6 @@ export default function AdvicePage() {
       setAppStage('TEAM_INTRO')
     } else {
       // Enter inline onboarding — stay on /advice, use the chat UI with /api/onboarding
-      // #region agent log
-      console.log('[DEBUG handleChoose] onboarding branch — entering inline ONBOARDING stage')
-      // #endregion
       const openingMsg: ChatMessage = {
         id: `kato_onboarding_${Date.now()}`,
         role: 'assistant',
