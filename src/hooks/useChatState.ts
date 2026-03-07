@@ -177,20 +177,27 @@ export function useChatState(): ChatStateReturn {
 
     setStatus('thinking')
 
+    // #region agent log
+    console.log('[DEBUG useChatState.send] appStage=', appStage, 'endpoint will be:', appStage === 'ONBOARDING' ? '/api/onboarding' : '/api/advice')
+    // #endregion
+
     try {
-      const res = await fetch('/api/advice', {
+      const isOnboarding = appStage === 'ONBOARDING'
+      const res = await fetch(isOnboarding ? '/api/onboarding' : '/api/advice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: trimmed,
-          history: historyForApi,
-          userId,
-          appStage,
-          consentAccepted: memory.consentAccepted,
-          preferredName: memory.preferredName ?? undefined,
-          activeCoach: activeCoach ?? 'kato',
-          memorySummary,
-        }),
+        body: isOnboarding
+          ? JSON.stringify({ input: trimmed, history: historyForApi, finalize: false })
+          : JSON.stringify({
+              input: trimmed,
+              history: historyForApi,
+              userId,
+              appStage,
+              consentAccepted: memory.consentAccepted,
+              preferredName: memory.preferredName ?? undefined,
+              activeCoach: activeCoach ?? 'kato',
+              memorySummary,
+            }),
       })
 
       if (!res.ok || !res.body) {

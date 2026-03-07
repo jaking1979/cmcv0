@@ -22,7 +22,6 @@
  */
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import type { AppStage } from '@/lib/appState'
 import type { CoachId } from '@/lib/coaches/definitions'
 import type { ChatMessage } from '@/components/chat/types'
@@ -155,19 +154,11 @@ export function FirstRunFlow({
     if (el) el.scrollTop = el.scrollHeight
   }, [appStage])
 
-  // If localStorage still has ONBOARDING (e.g. from a previous session before the fix),
-  // redirect to the actual onboarding page immediately.
+  // #region agent log
   React.useEffect(() => {
-    // #region agent log
     console.log('[DEBUG FirstRunFlow] appStage=', appStage, 'at', new Date().toISOString())
-    // #endregion
-    if (appStage === 'ONBOARDING') {
-      // #region agent log
-      console.log('[DEBUG FirstRunFlow] ONBOARDING stage detected — calling router.push(/onboarding)')
-      // #endregion
-      router.push('/onboarding')
-    }
-  }, [appStage, router])
+  }, [appStage])
+  // #endregion
 
   // Stages that use the normal chat flow — render nothing here
   if (appStage === 'LIGHT_CHAT' || appStage === 'PERSONALIZED_CHAT') return null

@@ -17,7 +17,6 @@
  */
 
 import { useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import { MessageList } from '@/components/chat/MessageList'
 import { MessageComposer } from '@/components/chat/MessageComposer'
 import BottomNav, { NavSpacer } from '@/components/BottomNav'
@@ -37,7 +36,6 @@ function katoGreeting(preferredName: string | null): string {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdvicePage() {
-  const router = useRouter()
   const {
     appStage, setAppStage,
     messages, addMessage, clearMessages,
@@ -46,9 +44,10 @@ export default function AdvicePage() {
     activeCoach, setActiveCoach,
   } = useChatState()
 
-  const isFirstRun = appStage !== 'LIGHT_CHAT' && appStage !== 'PERSONALIZED_CHAT'
+  // ONBOARDING uses the inline chat UI (not the FirstRunFlow overlay), so it's excluded from isFirstRun.
+  const isFirstRun = appStage !== 'LIGHT_CHAT' && appStage !== 'PERSONALIZED_CHAT' && appStage !== 'ONBOARDING'
 
-  // Composer is active during PRE_CONSENT (coaching-vs-therapy Q&A) and LIGHT_CHAT / PERSONALIZED_CHAT.
+  // Composer is active during PRE_CONSENT (coaching-vs-therapy Q&A), ONBOARDING, LIGHT_CHAT, and PERSONALIZED_CHAT.
   // It is disabled during all other first-run stages (those stages have their own inputs).
   const composerDisabled = isBusy || (isFirstRun && appStage !== 'PRE_CONSENT')
 
@@ -91,14 +90,22 @@ export default function AdvicePage() {
       updateMemory({ appStage: 'TEAM_INTRO' })
       setAppStage('TEAM_INTRO')
     } else {
-      // Navigate directly to the onboarding page (already built at /onboarding)
+      // Enter inline onboarding — stay on /advice, use the chat UI with /api/onboarding
       // #region agent log
-      console.log('[DEBUG handleChoose] onboarding branch — calling router.push(/onboarding), current URL=', window.location.href)
+      console.log('[DEBUG handleChoose] onboarding branch — entering inline ONBOARDING stage')
       // #endregion
-      updateMemory({ onboardingStarted: true })
-      router.push('/onboarding')
+      const openingMsg: ChatMessage = {
+        id: `kato_onboarding_${Date.now()}`,
+        role: 'assistant',
+        content: "I'd like to take some time to get to know you better — your situation, what brings you here, and what matters most to you. This is a conversation, not a questionnaire, so feel free to share at your own pace. There's no right way to do this.\n\nWhat feels like a natural place to start?",
+        createdAt: Date.now(),
+      }
+      clearMessages()
+      addMessage(openingMsg)
+      updateMemory({ onboardingStarted: true, appStage: 'ONBOARDING' })
+      setAppStage('ONBOARDING')
     }
-  }, [updateMemory, enterLightChat, setAppStage, router])
+  }, [updateMemory, enterLightChat, setAppStage, clearMessages, addMessage])
 
   const handleViewCoach = useCallback((id: CoachId) => {
     setActiveCoach(id)
@@ -257,6 +264,24 @@ export default function AdvicePage() {
           </div>
         )}
 
+        {/* Finish onboarding — visible only during ONBOARDING stage */}
+        {appStage === 'ONBOARDING' && (
+          <div className="mb-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => enterLightChat()}
+              className="text-xs font-medium px-4 py-2 rounded-full transition-opacity opacity-70 hover:opacity-100"
+              style={{
+                color: 'var(--cmc-teal-700, #2C7A72)',
+                background: 'rgba(63,168,156,0.1)',
+                border: '1px solid rgba(63,168,156,0.3)',
+              }}
+            >
+              Finish onboarding → Start coaching
+            </button>
+          </div>
+        )}
+
         {/* Composer — disabled during non-chat first-run stages */}
         <MessageComposer
           onSend={handleSend}
@@ -265,6 +290,8 @@ export default function AdvicePage() {
           placeholder={
             appStage === 'PRE_CONSENT'
               ? 'Ask about coaching vs. therapy…'
+              : appStage === 'ONBOARDING'
+              ? 'Share what\'s on your mind…'
               : "What's on your mind?"
           }
         />
