@@ -1,3 +1,8 @@
+> ⚠️ **ARCHIVED — v0 Lite Era (Superseded)**
+> This document describes the original "Lite" v0 onboarding and daily check-in logic. It has been superseded by the **V1 Onboarding Spec** (`docs/v1_onboarding_spec.md`) and the **ITC Master Rules** (`docs/ITC_master_rules.md`). Do not use this document to guide new development. Retained for historical reference only.
+
+---
+
 # CMC Sober Coach — Lite Version Prompt & Logic Spec (Part 1: Foundations & Core Flows)
 
 This is Part 1 of 3. It contains the foundations and the first two core flows of the Lite version: Onboarding and Daily Check-In.

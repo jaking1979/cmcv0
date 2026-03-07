@@ -1,3 +1,8 @@
+> ⚠️ **ARCHIVED — Historical Planning Document**
+> This document captured the transition plan from v0 (proof-of-concept) to v1 (comprehensive MVP). The v1 features it describes — multi-agent coaches, onboarding mapping, plan builder, PWA delivery, and learning hub — have now been implemented. Current architecture is documented in `docs/v1_multi_agent_system.md`, `docs/v1_onboarding_spec.md`, and `docs/lessons_system_implementation.md`. Retained for historical context only.
+
+---
+
 # CMC Sober Coach – Scope Definition (v0 → v1)
 
 ## 1. What We’ve Built (v0 – Lite Version)

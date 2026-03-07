@@ -159,6 +159,14 @@ function mentionsReadiness(text: string) {
   const t = (text || '').toLowerCase()
   return /(ready|not ready|thinking about|considering|want to change|don't want to|part of me wants|ambivalen|not sure (if|whether)|on the fence|maybe|someday|not yet)/.test(t)
 }
+function mentionsCommunicationStyle(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(direct|give it to me straight|just tell me|practical|gentle|reflective|prefer.*support|how (i'd like|you) to talk|feedback style|blunt|soft|help me think)/.test(t)
+}
+function mentionsSafetyTopics(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(safe|safety|overdose|overdosed|withdrawal|blackout|blacked out|using alone|alone when (i use|using)|mixing|suicid|harm yourself|physically unsafe|medical emergency|domestic|violence)/.test(t)
+}
 
 /* -------- safety screen -------- */
 
@@ -305,7 +313,10 @@ function deriveCurrentSegment(history: Msg[], latest: string): number {
   // Domain 8 — Readiness & ambivalence
   if (!mentionsReadiness(blob) && userTurns < 11) return 8
 
-  // Domain 9 — Closing
+  // Domain 9 — Communication style
+  if (!mentionsCommunicationStyle(blob) && userTurns < 13) return 9
+
+  // Domain 10 (stored as 9 since 0-indexed) — Safety screen + closing
   return 9
 }
 
@@ -327,7 +338,7 @@ function hasEnoughSignal(segment: number, history: Msg[], latest: string): boole
     case 6: return mentionsSupports(blob)
     case 7: return mentionsStrengths(blob) || userTurns >= 9
     case 8: return mentionsReadiness(blob) || userTurns >= 11
-    case 9: return true
+    case 9: return mentionsCommunicationStyle(blob) || mentionsSafetyTopics(blob) || userTurns >= 14
     default: return false
   }
 }
@@ -352,7 +363,10 @@ function coverageScore(history: Msg[], latest: string) {
   if (mentionsTriggers(userText)) score++
   if (mentionsConsequences(userText)) score++
   if (mentionsSupports(userText)) score++
-  return score // 0..5
+  if (mentionsFunction(userText)) score++
+  if (mentionsStrengths(userText)) score++
+  if (mentionsReadiness(userText)) score++
+  return score // 0..8
 }
 
 function shouldOfferSummaryNow(history: Msg[], latest: string) {
@@ -361,10 +375,11 @@ function shouldOfferSummaryNow(history: Msg[], latest: string) {
 
   const score = coverageScore(history, latest)
 
-  // V1: require coverage of ≥7 of 10 domains AND ≥10 user turns
+  // V1: require coverage of ≥6 of 8 signal domains AND ≥10 user turns
+  // (safety and communication style may not be explicitly mentioned; rely on turn count)
   if (isV1Enabled()) {
     const segment = deriveCurrentSegment(history, latest)
-    return score >= 5 && userTurns >= 10 && segment >= 7
+    return score >= 6 && userTurns >= 10 && segment >= 7
   }
 
   return score >= 5

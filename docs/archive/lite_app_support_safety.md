@@ -1,3 +1,8 @@
+> ⚠️ **ARCHIVED — v0 Lite Era (Superseded)**
+> This document describes the original "Lite" v0 Advice Engine, Post-Lapse, and Crisis modules. The crisis resource list is still accurate, but the overall module logic has been superseded by the **V1 Multi-Agent System** (`docs/v1_multi_agent_system.md`) and the **ITC Master Rules** (`docs/ITC_master_rules.md`). Retained for historical reference only.
+
+---
+
 # CMC Sober Coach — Lite Version Prompt & Logic Spec (Part 2: Support & Safety Modules)
 
 This is Part 2 of 3. It contains the support and safety modules of the Lite version: Advice Engine, Learn Something, Post-Lapse, Crisis Safety, plus the Master Flow and Message Library.

@@ -1,3 +1,8 @@
+> ⚠️ **ARCHIVED — Superseded by V1 Onboarding Spec**
+> This was an intermediate "roadmap" style guide written between v0 and v1. Its emphasis on a fast "coach intake" pace and the A–F segment structure has been replaced by the more detailed **V1 Onboarding Spec** (`docs/v1_onboarding_spec.md`), which is ITC/MI-governed and covers 10 full conversational segments. Do not use this document to guide new development. Retained for historical reference only.
+
+---
+
 # Onboarding Style Guide (Roadmap)  
 *Modeled after Intake Interview Style*  
 

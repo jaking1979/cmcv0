@@ -1,6 +1,6 @@
 # Avatar Talking Head Component – Technical Spec
 
-Last updated: {{today}}
+Last updated: 2026-03-07
 
 ## 1) Purpose & Overview
 
@@ -14,18 +14,19 @@ A lightweight, dependency‑free React component that renders a stylized “talk
 
 ## 2) File Locations & Naming
 
+> ⚠️ **Path update (as of 2026-03-07):** The original spec placed components in `src/components/lesson/`. The implemented files live at the paths below. `LessonGuide.tsx` was never separately implemented — its role was absorbed into `LessonPlayer.tsx`.
+
 ```
-public/
-  assets/
-    josh-avatar.png          # exported cartoon avatar (512–1024 px)
 src/
+  assets/
+    josh-avatar.png          # cartoon avatar image (also accessible via /src/assets)
   components/
-    lesson/
-      AvatarTalkingHead.tsx  # core animated avatar (eyes+mouth+head bob)
-      LessonGuide.tsx        # layout wrapper pairing avatar with AI text bubble
+    AvatarTalkingHead.tsx    # core animated avatar (eyes+mouth+head bob)  ← ACTUAL PATH
+    lessons/
+      LessonPlayer.tsx       # full lesson experience (replaces the original LessonGuide concept)
 ```
 
-> **Note:** If you prefer image imports, you can also place the asset in `/src/assets` and use Next Image. Using `/public` keeps it framework‑agnostic and easy to swap.
+> **Note:** The avatar image is also available at `src/assets/josh-avatar.png` via Next Image import. The original spec referenced `public/assets/josh-avatar.png` — use the `src/assets/` path with Next Image in current code.
 
 ---
 
@@ -33,7 +34,7 @@ src/
 
 ### 3.1 `AvatarTalkingHead`
 
-**Path**: `@/components/lesson/AvatarTalkingHead`
+**Path**: `@/components/AvatarTalkingHead` *(previously documented as `@/components/lesson/AvatarTalkingHead` — use the current path)*
 
 **Props**
 
@@ -50,9 +51,11 @@ src/
 
 **Returns**: `<div>` with base `<img>` and two absolutely‑positioned SVG overlays (eyes, mouth).
 
-### 3.2 `LessonGuide`
+### 3.2 `LessonGuide` *(Not Implemented — Superseded by `LessonPlayer`)*
 
-**Path**: `@/components/lesson/LessonGuide`
+> ⚠️ `LessonGuide` was never separately implemented. Its responsibilities were folded into `LessonPlayer` (`src/components/lessons/LessonPlayer.tsx`), which handles the full lesson experience including avatar display, script progression, and user interaction. Refer to `docs/lessons_system_implementation.md` for the current implementation.
+
+**Path (original design)**: `@/components/lesson/LessonGuide`
 
 **Props**
 
@@ -101,6 +104,10 @@ src/
 ## 7) Example Usage
 
 ```tsx
+// ⚠️ LessonGuide is not implemented. Use LessonPlayer for full lesson rendering,
+// or use AvatarTalkingHead directly with the corrected import path.
+import AvatarTalkingHead from "@/components/AvatarTalkingHead";
+// Original (stale) example preserved below for design reference:
 import LessonGuide from "@/components/lesson/LessonGuide";
 
 export default function LessonPage() {
@@ -184,11 +191,13 @@ export default function LessonPage() {
 
 ## 15) Snippets for Rapid Scaffolding
 
-**Create files**
+**Correct import path**
 
 ```bash
-mkdir -p components/lesson
-# Add AvatarTalkingHead.tsx and LessonGuide.tsx per this spec
+# AvatarTalkingHead already exists at:
+src/components/AvatarTalkingHead.tsx
+
+# Do NOT create a components/lesson/ subdirectory — the original spec path was never used.
 ```
 
 **Swap avatar quickly**

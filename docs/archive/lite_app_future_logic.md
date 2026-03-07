@@ -1,3 +1,8 @@
+> ⚠️ **ARCHIVED — v0 Lite Era (Superseded)**
+> This document describes v0 decision logic change guidelines and the "Reflect → Validate → Ask → Suggest" flow. The app has since evolved to an ITC/MI-governed stance. Current behavioral rules are in `docs/ITC_master_rules.md`. Retained for historical reference only.
+
+---
+
 # CMC Sober Coach — Lite Version Prompt & Logic Spec (Part 3: Structuring Future Decision Logic)
 
 This is Part 3 of 3. It provides guidance on how to design, evaluate, and propose changes to decision logic as the app evolves.

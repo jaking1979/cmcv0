@@ -1,621 +1,211 @@
 /**
  * Onboarding Assessment Mapping — V1
  *
- * Maps a natural-conversation transcript to the OnboardingFormulation schema.
- * The AI mapping call does the heavy lifting; this module builds the prompt,
- * calls the API, and assembles the typed result.
+ * Maps a natural conversation transcript to the OnboardingFormulation schema.
+ * All inferences are heuristic and provisional — not clinically validated.
+ * See docs/v1_onboarding_spec.md for full specification.
  */
 
-import type {
-  OnboardingFormulation,
-  CurrentUse,
-  IdealGoal,
-  RiskMap,
-  ProtectionMap,
-  CoachProfiles,
-  CommunicationProfile,
-  SafetyFlags,
-  ConfidenceSummary,
-  BehavioralDimensions,
-  SegmentCoverage,
-  ReadinessProfile,
-  SelfCompassionProfile,
-  DistressProfile,
-  CopingProfile,
-  SubstanceProfile,
-  LifeDomainsProfile,
-  ConfidenceLevel,
-  ProfileBand,
-  SegmentSignalLevel,
-} from '../types'
+import type { CoachMessage } from '../types'
+import type { OnboardingFormulation, SegmentCoverage, CoverageStatus } from '../types'
+import { createEmptyFormulation } from '../types'
 import { CRISIS_AND_SCOPE_GUARDRAILS } from '../promptFragments'
+
+// Re-export so existing consumers can still import OnboardingProfile from here
+export type { OnboardingFormulation }
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function cl(val: unknown, fallback: ConfidenceLevel = 'low'): ConfidenceLevel {
-  if (val === 'low' || val === 'medium' || val === 'high') return val
-  return fallback
-}
-
-function pb(val: unknown): ProfileBand | undefined {
-  if (val === 'low' || val === 'emerging' || val === 'moderate' || val === 'strong') return val
-  return undefined
-}
-
-function ssl(val: unknown): SegmentSignalLevel {
-  if (val === 'none' || val === 'low_confidence' || val === 'medium' || val === 'high') return val
-  return 'none'
-}
-
-function bool(val: unknown, fallback = false): boolean {
-  if (typeof val === 'boolean') return val
-  return fallback
-}
-
-function strArr(val: unknown): string[] | undefined {
-  if (Array.isArray(val) && val.every(v => typeof v === 'string')) return val
-  return undefined
-}
-
-function str(val: unknown): string | undefined {
-  if (typeof val === 'string' && val.trim()) return val.trim()
-  return undefined
-}
-
-function numOrNull(val: unknown): -2 | -1 | 0 | 1 | 2 | null {
-  if (val === null) return null
-  const n = Number(val)
-  if ([-2, -1, 0, 1, 2].includes(n)) return n as -2 | -1 | 0 | 1 | 2
-  return null
-}
-
-// ── Default builders ──────────────────────────────────────────────────────────
-
-function defaultCurrentUse(): CurrentUse {
-  return { substances: [], confidence: 'low' }
-}
-
-function defaultIdealGoal(): IdealGoal {
-  return { confidence_level: 'low' }
-}
-
-function defaultRiskMap(): RiskMap {
-  return { severity_band: 'low', harm_domains: {}, confidence: 'low' }
-}
-
-function defaultProtectionMap(): ProtectionMap {
-  return { confidence: 'low' }
-}
-
-function defaultReadiness(): ReadinessProfile {
-  return { ambivalence_present: false, change_talk_present: false, sustain_talk_present: false, confidence: 'low' }
-}
-
-function defaultSelfCompassion(): SelfCompassionProfile {
-  return { critical_self_talk_present: false, shame_language_present: false, confidence: 'low' }
-}
-
-function defaultDistress(): DistressProfile {
-  return { confidence: 'low' }
-}
-
-function defaultCoping(): CopingProfile {
-  return { avoidance_present: false, confidence: 'low' }
-}
-
-function defaultSubstance(): SubstanceProfile {
-  return { poly_substance: false, confidence: 'low' }
-}
-
-function defaultLifeDomains(): LifeDomainsProfile {
-  return { confidence: 'low' }
-}
-
-function defaultCoachProfiles(): CoachProfiles {
-  return {
-    readiness: defaultReadiness(),
-    self_compassion: defaultSelfCompassion(),
-    distress: defaultDistress(),
-    coping: defaultCoping(),
-    substance: defaultSubstance(),
-    life_domains: defaultLifeDomains(),
-  }
-}
-
-function defaultCommunicationProfile(): CommunicationProfile {
-  return { confidence: 'low' }
-}
-
-function defaultSafetyFlags(): SafetyFlags {
-  return {
-    suicidality: false,
-    self_harm: false,
-    overdose_risk: false,
-    withdrawal_risk: false,
-    blackout_pattern: false,
-    poly_substance: false,
-    domestic_violence: false,
-    medical_urgency: false,
-  }
-}
-
-function defaultConfidenceSummary(): ConfidenceSummary {
-  return {
-    overall: 'low',
-    per_domain: {
-      current_use: 'low', ideal_goal: 'low', risk_map: 'low',
-      protection_map: 'low', readiness: 'low', self_compassion: 'low',
-      distress: 'low', coping: 'low', substance: 'low',
-      life_domains: 'low', communication: 'low', safety: 'low',
-    },
-    missing_domains: [],
-  }
-}
-
-function defaultBehavioralDimensions(): BehavioralDimensions {
-  return {
-    impulse_to_reflection: null,
-    avoidance_to_approach: null,
-    isolation_to_connection: null,
-    rigidity_to_flexibility: null,
-    shame_to_self_compassion: null,
-    confidence: 'low',
-  }
-}
-
-function defaultSegmentCoverage(): SegmentCoverage {
-  return {
-    seg1_opening: 'none', seg2_behavior_pattern: 'none', seg3_function: 'none',
-    seg4_costs: 'none', seg5_motivation: 'none', seg6_identity: 'none',
-    seg7_supports: 'none', seg8_strengths: 'none', seg9_readiness: 'none',
-    seg10_closing: 'none', segments_with_high_signal: 0, overall_coverage: 'low',
-  }
-}
-
-// ── Assembler — safely coerces raw AI JSON → typed OnboardingFormulation ─────
-
-function assembleFormulation(sessionId: string, raw: Record<string, unknown>): OnboardingFormulation {
-  const cu = (raw.current_use as Record<string, unknown>) || {}
-  const ig = (raw.ideal_goal as Record<string, unknown>) || {}
-  const rm = (raw.risk_map as Record<string, unknown>) || {}
-  const pm = (raw.protection_map as Record<string, unknown>) || {}
-  const cp = (raw.coach_profiles as Record<string, unknown>) || {}
-  const comm = (raw.communication_profile as Record<string, unknown>) || {}
-  const sf = (raw.safety_flags as Record<string, unknown>) || {}
-  const cs = (raw.confidence_summary as Record<string, unknown>) || {}
-  const bd = (raw.behavioral_dimensions as Record<string, unknown>) || {}
-  const sc = (raw.segment_coverage as Record<string, unknown>) || {}
-
-  // coach_profiles sub-objects
-  const readRaw = (cp.readiness as Record<string, unknown>) || {}
-  const scRaw   = (cp.self_compassion as Record<string, unknown>) || {}
-  const distRaw = (cp.distress as Record<string, unknown>) || {}
-  const copRaw  = (cp.coping as Record<string, unknown>) || {}
-  const subRaw  = (cp.substance as Record<string, unknown>) || {}
-  const ldRaw   = (cp.life_domains as Record<string, unknown>) || {}
-
-  const harm = (rm.harm_domains as Record<string, unknown>) || {}
-
-  // confidence_summary.per_domain
-  const pd = (cs.per_domain as Record<string, unknown>) || {}
-
-  // segment coverage — count highs
-  const segKeys: Array<keyof SegmentCoverage> = [
-    'seg1_opening', 'seg2_behavior_pattern', 'seg3_function', 'seg4_costs',
-    'seg5_motivation', 'seg6_identity', 'seg7_supports', 'seg8_strengths',
-    'seg9_readiness', 'seg10_closing',
-  ]
-  const segMap: Partial<SegmentCoverage> = {}
-  let highCount = 0
-  for (const k of segKeys) {
-    const v = ssl(sc[k])
-    ;(segMap as Record<string, SegmentSignalLevel>)[k] = v
-    if (v === 'high') highCount++
-  }
-
-  const overallCoverage: ConfidenceLevel =
-    highCount >= 7 ? 'high' : highCount >= 4 ? 'medium' : 'low'
-
-  return {
-    session_id: sessionId,
-    timestamp: Date.now(),
-    schema_version: '1.0',
-
-    current_use: {
-      substances: strArr(cu.substances) || [],
-      primary_substance: str(cu.primary_substance),
-      frequency: str(cu.frequency),
-      quantity_per_occasion: str(cu.quantity_per_occasion),
-      context_patterns: strArr(cu.context_patterns),
-      use_trajectory: (['increasing','stable','decreasing','variable'].includes(cu.use_trajectory as string)
-        ? cu.use_trajectory : null) as CurrentUse['use_trajectory'],
-      confidence: cl(cu.confidence),
-    },
-
-    ideal_goal: {
-      stated_goal: (['abstain','reduce','moderate','maintain','explore','undecided'].includes(ig.stated_goal as string)
-        ? ig.stated_goal : undefined) as IdealGoal['stated_goal'],
-      user_language: str(ig.user_language),
-      timeframe: str(ig.timeframe),
-      self_efficacy: typeof ig.self_efficacy === 'number' ? ig.self_efficacy : undefined,
-      confidence_level: cl(ig.confidence_level),
-    },
-
-    risk_map: {
-      severity_band: pb(rm.severity_band) || 'low',
-      harm_domains: {
-        health: str(harm.health),
-        relationships: str(harm.relationships),
-        work_legal: str(harm.work_legal),
-        financial: str(harm.financial),
-        safety: str(harm.safety),
-      },
-      escalation_risk: (['low','moderate','high'].includes(rm.escalation_risk as string)
-        ? rm.escalation_risk : null) as RiskMap['escalation_risk'],
-      confidence: cl(rm.confidence),
-    },
-
-    protection_map: {
-      social_supports: strArr(pm.social_supports),
-      internal_strengths: strArr(pm.internal_strengths),
-      external_resources: strArr(pm.external_resources),
-      prior_successes: strArr(pm.prior_successes),
-      confidence: cl(pm.confidence),
-    },
-
-    coach_profiles: {
-      readiness: {
-        stage: (['precontemplation','contemplation','preparation','action','maintenance']
-          .includes(readRaw.stage as string) ? readRaw.stage : undefined) as ReadinessProfile['stage'],
-        ambivalence_present: bool(readRaw.ambivalence_present),
-        change_talk_present: bool(readRaw.change_talk_present),
-        sustain_talk_present: bool(readRaw.sustain_talk_present),
-        confidence: cl(readRaw.confidence),
-      },
-      self_compassion: {
-        self_kindness_band: pb(scRaw.self_kindness_band),
-        common_humanity_band: pb(scRaw.common_humanity_band),
-        mindfulness_band: pb(scRaw.mindfulness_band),
-        critical_self_talk_present: bool(scRaw.critical_self_talk_present),
-        shame_language_present: bool(scRaw.shame_language_present),
-        confidence: cl(scRaw.confidence),
-      },
-      distress: {
-        k10_estimated_band: (['low','moderate','high','very_high'].includes(distRaw.k10_estimated_band as string)
-          ? distRaw.k10_estimated_band : undefined) as DistressProfile['k10_estimated_band'],
-        who5_estimated_band: (['poor','moderate','good','excellent'].includes(distRaw.who5_estimated_band as string)
-          ? distRaw.who5_estimated_band : undefined) as DistressProfile['who5_estimated_band'],
-        distress_themes: strArr(distRaw.distress_themes),
-        confidence: cl(distRaw.confidence),
-      },
-      coping: {
-        primary_strategies: strArr(copRaw.primary_strategies),
-        avoidance_present: bool(copRaw.avoidance_present),
-        emotion_focused_capacity: pb(copRaw.emotion_focused_capacity),
-        problem_focused_capacity: pb(copRaw.problem_focused_capacity),
-        coping_self_efficacy_band: pb(copRaw.coping_self_efficacy_band),
-        confidence: cl(copRaw.confidence),
-      },
-      substance: {
-        risk_level: (['low','moderate','high'].includes(subRaw.risk_level as string)
-          ? subRaw.risk_level : undefined) as SubstanceProfile['risk_level'],
-        poly_substance: bool(subRaw.poly_substance),
-        withdrawal_risk: typeof subRaw.withdrawal_risk === 'boolean' ? subRaw.withdrawal_risk : undefined,
-        blackout_pattern: typeof subRaw.blackout_pattern === 'boolean' ? subRaw.blackout_pattern : undefined,
-        confidence: cl(subRaw.confidence),
-      },
-      life_domains: {
-        relationships: str(ldRaw.relationships),
-        employment: str(ldRaw.employment),
-        family: str(ldRaw.family),
-        legal: str(ldRaw.legal),
-        health: str(ldRaw.health),
-        financial: str(ldRaw.financial),
-        confidence: cl(ldRaw.confidence),
-      },
-    },
-
-    communication_profile: {
-      pace_preference: (['slow','moderate','direct'].includes(comm.pace_preference as string)
-        ? comm.pace_preference : undefined) as CommunicationProfile['pace_preference'],
-      language_style: (['clinical','casual','narrative','mixed'].includes(comm.language_style as string)
-        ? comm.language_style : undefined) as CommunicationProfile['language_style'],
-      reflection_openness: pb(comm.reflection_openness),
-      engagement_pattern: (['open','guarded','task-focused','story-driven'].includes(comm.engagement_pattern as string)
-        ? comm.engagement_pattern : undefined) as CommunicationProfile['engagement_pattern'],
-      help_seeking_style: (['independent','collaborative','directive-seeking'].includes(comm.help_seeking_style as string)
-        ? comm.help_seeking_style : undefined) as CommunicationProfile['help_seeking_style'],
-      confidence: cl(comm.confidence),
-    },
-
-    safety_flags: {
-      suicidality: bool(sf.suicidality),
-      self_harm: bool(sf.self_harm),
-      overdose_risk: bool(sf.overdose_risk),
-      withdrawal_risk: bool(sf.withdrawal_risk),
-      blackout_pattern: bool(sf.blackout_pattern),
-      poly_substance: bool(sf.poly_substance),
-      domestic_violence: bool(sf.domestic_violence),
-      medical_urgency: bool(sf.medical_urgency),
-      flag_details: str(sf.flag_details),
-    },
-
-    confidence_summary: {
-      overall: cl(cs.overall),
-      per_domain: {
-        current_use: cl(pd.current_use),
-        ideal_goal: cl(pd.ideal_goal),
-        risk_map: cl(pd.risk_map),
-        protection_map: cl(pd.protection_map),
-        readiness: cl(pd.readiness),
-        self_compassion: cl(pd.self_compassion),
-        distress: cl(pd.distress),
-        coping: cl(pd.coping),
-        substance: cl(pd.substance),
-        life_domains: cl(pd.life_domains),
-        communication: cl(pd.communication),
-        safety: cl(pd.safety),
-      },
-      missing_domains: strArr(cs.missing_domains) || [],
-    },
-
-    behavioral_dimensions: {
-      impulse_to_reflection: numOrNull(bd.impulse_to_reflection),
-      avoidance_to_approach: numOrNull(bd.avoidance_to_approach),
-      isolation_to_connection: numOrNull(bd.isolation_to_connection),
-      rigidity_to_flexibility: numOrNull(bd.rigidity_to_flexibility),
-      shame_to_self_compassion: numOrNull(bd.shame_to_self_compassion),
-      confidence: cl(bd.confidence),
-    },
-
-    segment_coverage: {
-      ...segMap,
-      segments_with_high_signal: highCount,
-      overall_coverage: overallCoverage,
-    } as SegmentCoverage,
-  }
-}
-
-// ── Mapping prompt ────────────────────────────────────────────────────────────
+// ─── Mapping Prompt ──────────────────────────────────────────────────────────
 
 function buildMappingPrompt(): string {
   return `${CRISIS_AND_SCOPE_GUARDRAILS}
 
-You are an assessment mapping specialist for the CMC / Invitation to Change coaching platform. Your job is to analyze a natural intake-conversation transcript and populate the OnboardingFormulation schema with as much evidence-grounded signal as the transcript supports.
+You are an intake mapping specialist for CMC Sober Coach. Your task is to analyze an onboarding conversation transcript and produce a structured OnboardingFormulation JSON object.
 
-CRITICAL GROUND RULES
-- Only populate fields where you have clear evidence from the conversation.
-- Never fabricate, infer beyond what was said, or fill gaps with assumptions.
-- Use null for missing fields. Use "low" confidence for weak signal, "medium" for implied, "high" for explicit.
-- This is NOT a clinical diagnosis — it is a coaching formulation used to personalize support.
-- Honor the ITC stance: no pathologizing, no moralizing, no labeling.
+ALL inferences must be:
+- Grounded in what was actually said or clearly implied by the user
+- Marked with appropriate confidence levels (Low/Medium/High)
+- Conservative — prefer null over guessing
+- Free of clinical diagnoses; use descriptive language only
 
-SCHEMA TO POPULATE
-Return a valid JSON object matching this structure exactly. All fields shown; set to null/false/[] if absent.
+PROFILE BANDS (for all band fields): "Low" | "Emerging" | "Moderate" | "Strong"
+CONFIDENCE LEVELS: "Low" | "Medium" | "High"
+  - Low: inferred from context, not explicitly stated
+  - Medium: clearly implied by multiple signals
+  - High: user explicitly stated the fact
 
+OUTPUT: Return ONLY a valid JSON object matching the schema below. No prose, no markdown, no explanation.
+
+SCHEMA:
 {
   "current_use": {
-    "substances": ["list", "of", "substances"],
-    "primary_substance": "string or null",
-    "frequency": "plain language string or null",
-    "quantity_per_occasion": "plain language string or null",
-    "context_patterns": ["list of context strings"] or null,
-    "use_trajectory": "increasing|stable|decreasing|variable or null",
-    "confidence": "low|medium|high"
+    "substances": [{ "name": string, "frequency": string|null, "amount_description": string|null, "route": string|null }],
+    "pattern_consistency": "daily"|"heavy_episodic"|"irregular"|"unknown"|null,
+    "recent_change_direction": "increasing"|"decreasing"|"stable"|"unknown"|null,
+    "functional_impact": string|null,
+    "disclosure_confidence": "Low"|"Medium"|"High"
   },
-
   "ideal_goal": {
-    "stated_goal": "abstain|reduce|moderate|maintain|explore|undecided or null",
-    "user_language": "verbatim goal phrase or null",
-    "timeframe": "string or null",
-    "self_efficacy": 0.0-1.0 or null,
-    "confidence_level": "low|medium|high"
+    "goal_type": "abstinence"|"moderation"|"reduction"|"harm_reduction"|"undecided"|null,
+    "goal_specificity": "clear"|"vague"|"none"|null,
+    "user_stated_goal": string|null,
+    "moderation_vision": string|null,
+    "ambivalence_level": "Low"|"Emerging"|"Moderate"|"Strong",
+    "values_signals": string[],
+    "prior_attempts": boolean|null,
+    "prior_attempt_description": string|null
   },
-
   "risk_map": {
-    "severity_band": "low|emerging|moderate|strong",
-    "harm_domains": {
-      "health": "one-line observation or null",
-      "relationships": "one-line observation or null",
-      "work_legal": "one-line observation or null",
-      "financial": "one-line observation or null",
-      "safety": "one-line observation or null"
-    },
-    "escalation_risk": "low|moderate|high or null",
-    "confidence": "low|medium|high"
+    "triggers": [{ "category": "emotional"|"situational"|"relational"|"sensory"|"temporal", "description": string }],
+    "high_risk_times": string[],
+    "high_risk_places": string[],
+    "emotional_drivers": string[],
+    "social_risk_factors": string[],
+    "craving_pattern": "sudden"|"gradual"|"situational"|"mixed"|null,
+    "habitual_pattern": boolean,
+    "recent_high_risk_event": boolean
   },
-
   "protection_map": {
-    "social_supports": ["list"] or null,
-    "internal_strengths": ["list"] or null,
-    "external_resources": ["list"] or null,
-    "prior_successes": ["list"] or null,
-    "confidence": "low|medium|high"
+    "supportive_people": string[],
+    "supportive_places": string[],
+    "protective_routines": string[],
+    "emotional_anchors": string[],
+    "prior_successes": string[],
+    "prior_attempts_failed": boolean,
+    "coping_resources_present": boolean,
+    "professional_support_current": boolean,
+    "professional_support_type": string|null
   },
-
   "coach_profiles": {
-    "readiness": {
-      "stage": "precontemplation|contemplation|preparation|action|maintenance or null",
-      "ambivalence_present": true|false,
-      "change_talk_present": true|false,
-      "sustain_talk_present": true|false,
-      "confidence": "low|medium|high"
-    },
-    "self_compassion": {
-      "self_kindness_band": "low|emerging|moderate|strong or null",
-      "common_humanity_band": "low|emerging|moderate|strong or null",
-      "mindfulness_band": "low|emerging|moderate|strong or null",
-      "critical_self_talk_present": true|false,
-      "shame_language_present": true|false,
-      "confidence": "low|medium|high"
-    },
-    "distress": {
-      "k10_estimated_band": "low|moderate|high|very_high or null",
-      "who5_estimated_band": "poor|moderate|good|excellent or null",
-      "distress_themes": ["list"] or null,
-      "confidence": "low|medium|high"
-    },
-    "coping": {
-      "primary_strategies": ["list"] or null,
-      "avoidance_present": true|false,
-      "emotion_focused_capacity": "low|emerging|moderate|strong or null",
-      "problem_focused_capacity": "low|emerging|moderate|strong or null",
-      "coping_self_efficacy_band": "low|emerging|moderate|strong or null",
-      "confidence": "low|medium|high"
-    },
-    "substance": {
-      "risk_level": "low|moderate|high or null",
-      "poly_substance": true|false,
-      "withdrawal_risk": true|false or null,
-      "blackout_pattern": true|false or null,
-      "confidence": "low|medium|high"
-    },
-    "life_domains": {
-      "relationships": "one-line observation or null",
-      "employment": "one-line observation or null",
-      "family": "one-line observation or null",
-      "legal": "one-line observation or null",
-      "health": "one-line observation or null",
-      "financial": "one-line observation or null",
-      "confidence": "low|medium|high"
-    }
+    "mi": { "motivation_level": band, "readiness": band, "ambivalence_tolerance": band, "confidence": conf },
+    "act": { "values_clarity": band, "psychological_flexibility": band, "experiential_avoidance": band, "confidence": conf },
+    "dbt": { "distress_tolerance": band, "emotion_regulation": band, "interpersonal_effectiveness": band, "mindfulness_skills": band, "confidence": conf },
+    "mindfulness": { "interoceptive_awareness": band, "present_moment_attention": band, "nonjudgmental_stance": band, "confidence": conf },
+    "self_compassion": { "self_kindness": band, "common_humanity": band, "lapse_recover_style": "learn"|"collapse"|"mixed"|null, "inner_critic_intensity": band, "confidence": conf },
+    "executive_support": { "planning_capacity": band, "follow_through": band, "impulse_gap": band, "structure_need": band, "confidence": conf }
   },
-
   "communication_profile": {
-    "pace_preference": "slow|moderate|direct or null",
-    "language_style": "clinical|casual|narrative|mixed or null",
-    "reflection_openness": "low|emerging|moderate|strong or null",
-    "engagement_pattern": "open|guarded|task-focused|story-driven or null",
-    "help_seeking_style": "independent|collaborative|directive-seeking or null",
-    "confidence": "low|medium|high"
+    "style": "direct"|"reflective"|"mixed"|null,
+    "preferred_depth": "surface"|"moderate"|"deep"|null,
+    "verbosity": "brief"|"moderate"|"verbose"|null,
+    "help_seeking_style": "instrumental"|"exploratory"|"mixed"|null,
+    "challenge_tolerance": "low"|"moderate"|"high"|null,
+    "shame_sensitivity": "low"|"moderate"|"high"|null,
+    "engagement_level": "low"|"moderate"|"high"|null
   },
-
   "safety_flags": {
-    "suicidality": false,
-    "self_harm": false,
-    "overdose_risk": false,
-    "withdrawal_risk": false,
-    "blackout_pattern": false,
-    "poly_substance": false,
-    "domestic_violence": false,
-    "medical_urgency": false,
-    "flag_details": "brief note if any flag is true, else null"
+    "suicidal_ideation": boolean,
+    "self_harm_risk": boolean,
+    "overdose_history": boolean,
+    "overdose_recent": boolean,
+    "withdrawal_risk": boolean,
+    "withdrawal_medically_complex": boolean,
+    "blackout_risk": boolean,
+    "using_alone": boolean,
+    "polysubstance": boolean,
+    "dv_risk": boolean,
+    "acute_risk_level": "none"|"low"|"moderate"|"high",
+    "safety_notes": string|null
   },
-
-  "confidence_summary": {
-    "overall": "low|medium|high",
-    "per_domain": {
-      "current_use": "low|medium|high",
-      "ideal_goal": "low|medium|high",
-      "risk_map": "low|medium|high",
-      "protection_map": "low|medium|high",
-      "readiness": "low|medium|high",
-      "self_compassion": "low|medium|high",
-      "distress": "low|medium|high",
-      "coping": "low|medium|high",
-      "substance": "low|medium|high",
-      "life_domains": "low|medium|high",
-      "communication": "low|medium|high",
-      "safety": "low|medium|high"
-    },
-    "missing_domains": ["list of domain names where confidence is low"]
-  },
-
   "behavioral_dimensions": {
-    "impulse_to_reflection": -2 to 2 or null,
-    "avoidance_to_approach": -2 to 2 or null,
-    "isolation_to_connection": -2 to 2 or null,
-    "rigidity_to_flexibility": -2 to 2 or null,
-    "shame_to_self_compassion": -2 to 2 or null,
-    "confidence": "low|medium|high"
+    "impulse_reflection": { "value": 1-5|null, "confidence": conf },
+    "solo_social_coping": { "value": 1-5|null, "confidence": conf },
+    "avoidance_approach": { "value": 1-5|null, "confidence": conf },
+    "planned_in_moment": { "value": 1-5|null, "confidence": conf },
+    "relief_seeking_values_guided": { "value": 1-5|null, "confidence": conf },
+    "lapse_recovery_style": "learn"|"collapse"|"mixed"|null,
+    "prefers_direct_feedback": { "value": 1-5|null, "confidence": conf },
+    "confidence": conf
   },
-
-  "segment_coverage": {
-    "seg1_opening": "none|low_confidence|medium|high",
-    "seg2_behavior_pattern": "none|low_confidence|medium|high",
-    "seg3_function": "none|low_confidence|medium|high",
-    "seg4_costs": "none|low_confidence|medium|high",
-    "seg5_motivation": "none|low_confidence|medium|high",
-    "seg6_identity": "none|low_confidence|medium|high",
-    "seg7_supports": "none|low_confidence|medium|high",
-    "seg8_strengths": "none|low_confidence|medium|high",
-    "seg9_readiness": "none|low_confidence|medium|high",
-    "seg10_closing": "none|low_confidence|medium|high"
+  "confidence_summary": {
+    "current_use": conf, "ideal_goal": conf, "risk_map": conf,
+    "protection_map": conf, "coach_profiles": conf, "communication_profile": conf,
+    "safety_flags": conf, "overall": conf,
+    "low_confidence_domains": string[]
   }
 }
 
-DOMAIN GUIDANCE FOR MAPPING
+DIMENSION SCALE REFERENCE (1–5):
+- impulse_reflection: 1=acts without thinking, 5=always reflects before acting
+- solo_social_coping: 1=copes entirely alone, 5=relies heavily on social support
+- avoidance_approach: 1=avoids discomfort entirely, 5=actively approaches difficult things
+- planned_in_moment: 1=purely in-the-moment decisions, 5=plans everything in advance
+- relief_seeking_values_guided: 1=use driven purely by relief from distress, 5=behavior clearly guided by personal values
+- prefers_direct_feedback: 1=prefers very gentle/soft support, 5=prefers direct/blunt feedback
 
-current_use: Infer substances from any mention (alcohol, cannabis, opioids, stimulants, etc.).
-  Frequency from: "every day", "weekends", "nightly", "a few times a week", etc.
-  Trajectory from: "I've been drinking more lately", "it's about the same", "I've cut back".
-
-ideal_goal: Stated or implied: "I want to quit", "just cut back a bit", "I'm not sure what I want yet".
-  self_efficacy: If they rate their confidence ("I think I could do it / I don't think I can").
-
-risk_map: severity_band — 'low' if minimal impact; 'emerging' if some early signs; 'moderate' if clear impact
-  in 2+ domains; 'strong' if severe, pervasive, or escalating harm. Harm domains: quote brief observations.
-
-protection_map: People, programs, routines, values, skills, past wins — anything that cushions risk.
-
-readiness (URICA stage):
-  Precontemplation = no current intention to change ("I don't really see a problem")
-  Contemplation = aware of problem, ambivalent ("I know I should but...")
-  Preparation = planning to change soon ("I'm going to try next month")
-  Action = actively making changes ("I've stopped / cut back and I'm doing it")
-  Maintenance = sustaining established change ("I've been sober X months")
-
-self_compassion: critical_self_talk = harsh self-judgment, "I'm such a failure", "I hate myself".
-  shame_language = "I'm disgusting", "I'm weak", "I should be ashamed".
-  Bands: 'low' = high self-criticism; 'strong' = warm, forgiving self-talk.
-
-distress (K10/WHO-5): Estimate band from emotional tone and content:
-  K10 low = calm, functional; moderate = stressed, anxious; high = significantly impaired; very_high = severe.
-  WHO-5 poor = flat, no pleasure, low energy; excellent = positive mood, energy, interest.
-
-coping: What they do when stressed or triggered — avoid, reach out, problem-solve, use substances, exercise, etc.
-  Avoidance includes: "I just don't think about it", "I leave", "I shut down", substance use as escape.
-
-substance risk_level:
-  low = minimal frequency/quantity, no significant consequences
-  moderate = regular use with some consequences, some loss of control
-  high = heavy/daily use, significant consequences, possible dependence signs
-
-behavioral_dimensions (each -2 to +2):
-  impulse_to_reflection: -2 = acts without thinking; +2 = pauses, reflects, plans
-  avoidance_to_approach: -2 = avoids all discomfort; +2 = actively faces/approaches
-  isolation_to_connection: -2 = no support, handles alone; +2 = rich social support
-  rigidity_to_flexibility: -2 = fixed patterns, all-or-nothing; +2 = adaptive, flexible
-  shame_to_self_compassion: -2 = dominated by shame; +2 = genuine self-compassion
-
-segment_coverage: Rate each of the 10 onboarding domains based on how much signal the transcript provides:
-  none = topic never came up
-  low_confidence = briefly touched on, ambiguous
-  medium = discussed with some depth
-  high = clear, substantive signal that informs coaching
-
-Segments:
-  seg1_opening = why they came, their framing of the situation
-  seg2_behavior_pattern = what/when/how much/where
-  seg3_function = what the behavior gives them in the short term
-  seg4_costs = consequences they named in their own words
-  seg5_motivation = what they hope for; their version of a good outcome
-  seg6_identity = who they are, who they want to be, what this means to their sense of self
-  seg7_supports = who or what helps them
-  seg8_strengths = past efforts, resilience, values, capacities
-  seg9_readiness = where they are right now re: readiness/ambivalence
-  seg10_closing = communication preferences, what feels most useful to them
-`.trim()
+IMPORTANT GUIDELINES:
+- Set confidence based on evidence strength, not best guess
+- Prefer null for unmentioned fields rather than defaulting to "Low"
+- Safety flags: only set to true if user actually described the situation — do not infer from severity alone
+- Do not infer suicidal ideation unless explicitly stated; blackout_risk only if user described blackouts
+- For coach_profiles, set confidence to "Low" if you have minimal direct evidence for that lens
+- behavioral_dimensions.value should be null if you cannot reasonably infer it from the transcript`.trim()
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// ─── Segment Coverage Inference ──────────────────────────────────────────────
 
 /**
- * Map a conversation transcript to a typed OnboardingFormulation.
- * This is called by /api/onboarding/map after the conversation is complete.
+ * Infer segment coverage from the transcript using heuristics.
+ * This runs server-side so the formulation records which segments were covered.
+ */
+export function inferSegmentCoverage(transcript: string): SegmentCoverage {
+  const t = transcript.toLowerCase()
+
+  function covered(patterns: RegExp[]): CoverageStatus {
+    const matches = patterns.filter(p => p.test(t)).length
+    if (matches === 0) return 'not_started'
+    if (matches >= 2) return 'complete'
+    return 'partial'
+  }
+
+  return {
+    seg0_opening: transcript.length > 50 ? 'complete' : 'not_started',
+    seg1_why_now: covered([
+      /brought you here|what brings you|hoping.*help|why.*now|what.*going on/,
+      /came here because|hoping to|want to (change|stop|quit|cut|get help)/,
+    ]),
+    seg2_current_use: covered([
+      /drink|use|smoke|take|using|alcohol|cannabis|weed|opioid|cocaine|meth|pill/,
+      /every day|daily|weekly|times a (day|week)|how (much|often)|typical week/,
+    ]),
+    seg3_goals: covered([
+      /want to (stop|quit|cut|reduce|moderate|abstain|change)/,
+      /goal|hoping for|ideal|ambiv|not sure (what|if)|undecided|figure it out/,
+    ]),
+    seg4_risk_map: covered([
+      /trigger|urge|craving|hard to|makes it harder|set.*off|urge.*to use/,
+      /stress|anxiety|bored|lonely|social|evening|night|work|fight|argument/,
+    ]),
+    seg5_protection_map: covered([
+      /helps|what.*helps|support|friend|family|partner|routine|gym|walk|meeting/,
+      /sober|clean|made it through|good day|what works/,
+    ]),
+    seg6_skills_map: covered([
+      /cope|coping|strategy|strategies|skill|what do you do|deal with|handle/,
+      /mindful|breath|self.compassion|hard on yourself|plan|structure|body/,
+    ]),
+    seg7_communication: covered([
+      /direct|practical|reflective|gentle|talk to (you|me)|prefer|feedback style/,
+      /give it to me straight|help me think|just tell me/,
+    ]),
+    seg8_safety: covered([
+      /safe|safety|overdose|withdrawal|blackout|alone|mixing|suicid|harm yourself/,
+      /physically unsafe|medical|dangerous|domestic|abuse/,
+    ]),
+    seg9_summary: covered([
+      /summary|intake|wrap.?up|reflect back|does that feel|what i'm hearing/,
+      /good picture|accurate|first pass|starting point/,
+    ]),
+  }
+}
+
+// ─── Main Mapping Function ───────────────────────────────────────────────────
+
+/**
+ * Map a conversation transcript to an OnboardingFormulation using AI inference.
+ * Falls back to an empty formulation with heuristic safety flags if AI fails.
  */
 export async function mapTranscriptToFormulation(
   sessionId: string,
@@ -631,7 +221,7 @@ export async function mapTranscriptToFormulation(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
       model: OPENAI_MODEL,
@@ -639,63 +229,148 @@ export async function mapTranscriptToFormulation(
         { role: 'system', content: systemPrompt },
         {
           role: 'user',
-          content: `Analyze this intake conversation and return a populated OnboardingFormulation JSON object. Ground every field in what was actually said.\n\nTRANSCRIPT:\n${transcript}`,
+          content: `Analyze this intake conversation and produce the OnboardingFormulation JSON:\n\n${transcript}`,
         },
       ],
-      temperature: 0.2, // Low temperature for consistent, conservative mapping
-      max_tokens: 2500,
+      temperature: 0.2,  // Low for consistent, conservative mapping
+      max_tokens: 2000,
       response_format: { type: 'json_object' },
     }),
   })
 
   if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`OpenAI API error: ${response.status} - ${error}`)
+    const err = await response.text().catch(() => '')
+    throw new Error(`OpenAI mapping error: ${response.status} — ${err}`)
   }
 
   const data = await response.json()
-  let raw: Record<string, unknown> = {}
-  try {
-    raw = JSON.parse(data.choices[0]?.message?.content || '{}')
-  } catch {
-    console.error('[onboardingMapping] Failed to parse AI JSON response')
+  const raw = JSON.parse(data.choices?.[0]?.message?.content || '{}')
+
+  // Build the full formulation from the AI result, filling any missing fields
+  // from the empty default to ensure the object is always complete.
+  const base = createEmptyFormulation(sessionId)
+  const segmentCoverage = inferSegmentCoverage(transcript)
+
+  const formulation: OnboardingFormulation = {
+    session_id: sessionId,
+    timestamp: Date.now(),
+    schema_version: '1.0',
+    current_use: { ...base.current_use, ...(raw.current_use ?? {}) },
+    ideal_goal: { ...base.ideal_goal, ...(raw.ideal_goal ?? {}) },
+    risk_map: { ...base.risk_map, ...(raw.risk_map ?? {}) },
+    protection_map: { ...base.protection_map, ...(raw.protection_map ?? {}) },
+    coach_profiles: {
+      mi: { ...base.coach_profiles.mi, ...(raw.coach_profiles?.mi ?? {}) },
+      act: { ...base.coach_profiles.act, ...(raw.coach_profiles?.act ?? {}) },
+      dbt: { ...base.coach_profiles.dbt, ...(raw.coach_profiles?.dbt ?? {}) },
+      mindfulness: { ...base.coach_profiles.mindfulness, ...(raw.coach_profiles?.mindfulness ?? {}) },
+      self_compassion: { ...base.coach_profiles.self_compassion, ...(raw.coach_profiles?.self_compassion ?? {}) },
+      executive_support: { ...base.coach_profiles.executive_support, ...(raw.coach_profiles?.executive_support ?? {}) },
+    },
+    communication_profile: { ...base.communication_profile, ...(raw.communication_profile ?? {}) },
+    safety_flags: { ...base.safety_flags, ...(raw.safety_flags ?? {}) },
+    confidence_summary: { ...base.confidence_summary, ...(raw.confidence_summary ?? {}) },
+    behavioral_dimensions: {
+      ...base.behavioral_dimensions,
+      ...(raw.behavioral_dimensions ?? {}),
+      impulse_reflection: { ...base.behavioral_dimensions.impulse_reflection, ...(raw.behavioral_dimensions?.impulse_reflection ?? {}) },
+      solo_social_coping: { ...base.behavioral_dimensions.solo_social_coping, ...(raw.behavioral_dimensions?.solo_social_coping ?? {}) },
+      avoidance_approach: { ...base.behavioral_dimensions.avoidance_approach, ...(raw.behavioral_dimensions?.avoidance_approach ?? {}) },
+      planned_in_moment: { ...base.behavioral_dimensions.planned_in_moment, ...(raw.behavioral_dimensions?.planned_in_moment ?? {}) },
+      relief_seeking_values_guided: { ...base.behavioral_dimensions.relief_seeking_values_guided, ...(raw.behavioral_dimensions?.relief_seeking_values_guided ?? {}) },
+      prefers_direct_feedback: { ...base.behavioral_dimensions.prefers_direct_feedback, ...(raw.behavioral_dimensions?.prefers_direct_feedback ?? {}) },
+    },
+    segment_coverage: segmentCoverage,
   }
 
-  return assembleFormulation(sessionId, raw)
+  return formulation
 }
 
-/**
- * Validate a formulation has required fields and valid confidence scores.
- */
-export function validateFormulation(formulation: OnboardingFormulation): boolean {
-  if (!formulation.session_id || !formulation.timestamp) return false
-  if (formulation.schema_version !== '1.0') return false
+// ─── Legacy shim ─────────────────────────────────────────────────────────────
+// Keep the old mapTranscriptToProfile name so existing callers don't break
+// while we migrate to the new schema.
 
-  // All confidence fields must be valid ConfidenceLevels
-  const validLevels = new Set(['low', 'medium', 'high'])
-  const check = (v: unknown) => validLevels.has(v as string)
-
-  const pd = formulation.confidence_summary.per_domain
-  return (
-    check(formulation.confidence_summary.overall) &&
-    check(pd.current_use) &&
-    check(pd.ideal_goal) &&
-    check(pd.risk_map) &&
-    check(pd.protection_map) &&
-    check(pd.readiness) &&
-    check(pd.self_compassion) &&
-    check(pd.distress) &&
-    check(pd.coping) &&
-    check(pd.substance) &&
-    check(pd.life_domains) &&
-    check(pd.communication) &&
-    check(pd.safety)
-  )
+export interface OnboardingProfile {
+  sessionId: string
+  timestamp: number
+  constructs: {
+    selfCompassion: Record<string, unknown>
+    urica: Record<string, unknown>
+    kessler10: Record<string, unknown>
+    who5: Record<string, unknown>
+    dbtWccl: Record<string, unknown>
+    copingSelfEfficacy: Record<string, unknown>
+    assist: Record<string, unknown>
+    asi: Record<string, unknown>
+  }
+  confidence: {
+    selfCompassion: number; urica: number; kessler10: number; who5: number
+    dbtWccl: number; copingSelfEfficacy: number; assist: number; asi: number; overall: number
+  }
+  rawTranscript: string
+  redactedTranscript: string
+  // v1 full formulation attached alongside legacy fields
+  formulation?: OnboardingFormulation
 }
 
-// ── Backward-compat shims ─────────────────────────────────────────────────────
-// Keep old export names available so existing callers don't break
-// while the codebase migrates to the new names.
+export async function mapTranscriptToProfile(
+  sessionId: string,
+  transcript: string
+): Promise<OnboardingProfile> {
+  const formulation = await mapTranscriptToFormulation(sessionId, transcript)
 
-export { mapTranscriptToFormulation as mapTranscriptToProfile }
-export { validateFormulation as validateProfile }
+  // Map formulation back to legacy shape for existing consumers
+  const miConf = formulation.coach_profiles.mi.confidence === 'High' ? 0.9
+    : formulation.coach_profiles.mi.confidence === 'Medium' ? 0.6 : 0.3
+  const scConf = formulation.coach_profiles.self_compassion.confidence === 'High' ? 0.9
+    : formulation.coach_profiles.self_compassion.confidence === 'Medium' ? 0.6 : 0.3
+  const dbtConf = formulation.coach_profiles.dbt.confidence === 'High' ? 0.9
+    : formulation.coach_profiles.dbt.confidence === 'Medium' ? 0.6 : 0.3
+  const safetyConf = formulation.confidence_summary.safety_flags === 'High' ? 0.9
+    : formulation.confidence_summary.safety_flags === 'Medium' ? 0.6 : 0.3
+  const useConf = formulation.confidence_summary.current_use === 'High' ? 0.9
+    : formulation.confidence_summary.current_use === 'Medium' ? 0.6 : 0.3
+  const overallConf = formulation.confidence_summary.overall === 'High' ? 0.9
+    : formulation.confidence_summary.overall === 'Medium' ? 0.6 : 0.3
+
+  return {
+    sessionId,
+    timestamp: formulation.timestamp,
+    constructs: {
+      selfCompassion: { ...formulation.coach_profiles.self_compassion },
+      urica: { stage: formulation.coach_profiles.mi.readiness, confidence: miConf },
+      kessler10: { distressLevel: null },
+      who5: { wellbeingLevel: null },
+      dbtWccl: { ...formulation.coach_profiles.dbt },
+      copingSelfEfficacy: { ...formulation.coach_profiles.executive_support },
+      assist: {
+        substanceType: formulation.current_use.substances.map(s => s.name),
+        riskLevel: formulation.safety_flags.acute_risk_level,
+      },
+      asi: { ...formulation.protection_map },
+    },
+    confidence: {
+      selfCompassion: scConf,
+      urica: miConf,
+      kessler10: 0,
+      who5: 0,
+      dbtWccl: dbtConf,
+      copingSelfEfficacy: dbtConf,
+      assist: useConf,
+      asi: safetyConf,
+      overall: overallConf,
+    },
+    rawTranscript: transcript,
+    redactedTranscript: transcript,
+    formulation,
+  }
+}
+
+export function validateProfile(profile: OnboardingProfile): boolean {
+  if (!profile.sessionId || !profile.timestamp) return false
+  for (const key in profile.confidence) {
+    const v = profile.confidence[key as keyof typeof profile.confidence]
+    if (typeof v !== 'number' || v < 0 || v > 1) return false
+  }
+  return true
+}

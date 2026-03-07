@@ -1,14 +1,17 @@
 # CMC Sober Coach – v1 Implementation Roadmap
 
-This roadmap translates the v0 → v1 scope into concrete, incremental steps. Each step lists: files to add/update, functionality, v0 preservation strategy, and testing/safety.
+> **Status Key:** ✅ Complete · 🔄 Partial · ⏳ Pending
+>
+> This roadmap translates the v0 → v1 scope into concrete, incremental steps. Each step lists: files to add/update, functionality, v0 preservation strategy, and testing/safety. Steps that have been fully implemented are marked ✅. See the linked implementation summaries for details.
 
-## 0) Preliminaries
+## 0) Preliminaries ✅
 - **Files**: `README.md` (note v1 branch), `docs/v1_plan.md` (this file)
 - **Functionality**: Document plan and branching strategy. No code changes.
 - **Preserve v0**: Work on `v1` branch; keep v0 routes/pages intact.
 - **Testing/Safety**: None.
 
-## 1) Architecture Expansion: Multi‑Agent Coaches + Manager AI (Scope §2, §4.2)
+## 1) Architecture Expansion: Multi‑Agent Coaches + Manager AI (Scope §2, §4.2) ✅
+> **Implemented.** See `docs/v1_multi_agent_system.md` for full architecture docs.
 - **Files**:
   - Create `src/server/ai/`:
     - `types.ts` (coach event, tag, plan types)
@@ -32,7 +35,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
   - Unit tests for `inferPhase`, coach taggers (deterministic heuristics).
   - Sanity tests for manager output limits (length, no PHI synthesis).
 
-## 2) Metrics Logging (Scope §2, §4.2, §2 Expanded Feature Set)
+## 2) Metrics Logging (Scope §2, §4.2, §2 Expanded Feature Set) ✅
+> **Implemented.** In-memory store, `/api/events` GET/POST, PII redaction, and session identity via cookie are all live.
 - **Files**:
   - `src/server/store/memory.ts` (in‑memory store for events)
   - Extend `src/app/api/events/route.ts` to write/read
@@ -46,7 +50,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - **Testing/Safety**:
   - Validate payload shape; strip PII; rate‑limit by IP/session.
 
-## 3) Onboarding Upgrade: Practical‑Curiosity Protocol (Scope §2, §4.3)
+## 3) Onboarding Upgrade: Practical‑Curiosity Protocol (Scope §2, §4.3) ✅
+> **Implemented.** Full 10-segment ITC/MI conversational intake is live. Assessment mapping endpoint and progress meter exist. See `docs/v1_onboarding_spec.md` for current spec.
 - **Files**:
   - Update `src/app/api/onboarding/route.ts` (prompt: map to assessments without verbatim items; keep summary flow and crisis checks)
   - Client `src/app/onboarding/page.tsx` (toggle to enable v1 intake mode; maintain current behavior default)
@@ -67,7 +72,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - De-duplicate follow-ups to avoid re-asking the same motivation/intent.
 - Add export options to the intake summary (Copy / Download PDF / Email).
 
-## 4) Advice Loop Upgrade: Multi‑Coach Listening (Scope §2, §4.2)
+## 4) Advice Loop Upgrade: Multi‑Coach Listening (Scope §2, §4.2) ✅
+> **Implemented.** Coach tags are posted after each exchange, plan CTA is auto-triggered, roleplay scenarios are integrated. See `docs/step4_implementation_summary.md`.
 - **Files**:
   - Update `src/app/advice/page.tsx` to optionally call `/api/events` after each user turn and show plan suggestions from `/api/plan` when permissioned.
   - Update `src/app/api/advice/route.ts` to include few‑shot hints that reference coach tags (non‑breaking).
@@ -90,7 +96,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - Preserve v0: advice flow can still operate without roleplays; enable roleplay mode behind a feature flag.
 - Testing/Safety: verify crisis interlocks remain active during roleplays; add unit/e2e tests for action menu rendering.
 
-## 5) Learning Hub: Modules + Progress (Scope §2, §4.3)
+## 5) Learning Hub: Modules + Progress (Scope §2, §4.3) ✅
+> **Implemented.** 40+ lessons loaded from Markdown, personalized lesson plan recommender, tour overlays, off-topic detection, and progress tracking in localStorage. See `docs/lessons_system_implementation.md`.
 - **Files**:
   - Pages: `src/app/learn/modules/page.tsx`, `src/app/learn/[slug]/page.tsx` (extend)
   - Components: `components/lesson/LessonGuide.tsx` (enhance), `components/lesson/AvatarTalkingHead.tsx` (use existing spec)
@@ -102,7 +109,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - **Testing/Safety**:
   - a11y checks for keyboard focus; ensure lessons work without avatar.
 
-## 6) Plan Builder UI (Scope §2, §4.2)
+## 6) Plan Builder UI (Scope §2, §4.2) ✅
+> **Implemented.** Dedicated `/plan` page with plan pinning, categorized actions, difficulty badges, and session persistence. See `docs/step6_plan_builder_implementation.md`.
 - **Files**:
   - Page: `src/app/plan/page.tsx`
   - Components: `src/components/plan/PlanCard.tsx`, `PlanList.tsx`
@@ -112,7 +120,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - **Testing/Safety**:
   - Ensure empty‑state renders; word count caps; no lists until permission.
 
-## 7) PWA Delivery (Scope §2, §4.4)
+## 7) PWA Delivery (Scope §2, §4.4) 🔄
+> **Partially implemented.** App is installable as a PWA with manifest and service worker. Full offline caching and Lighthouse PWA audit not yet confirmed complete.
 - **Files**:
   - `public/manifest.webmanifest`
   - `src/app/icon.png`, `src/app/apple-touch-icon.png`
@@ -125,7 +134,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - **Testing/Safety**:
   - Lighthouse PWA checks; fallbacks for offline chat (disabled with clear messaging).
 
-## 8) Notifications (Scope §2, §4.4)
+## 8) Notifications (Scope §2, §4.4) 🔄
+> **Partially implemented.** Push subscription infrastructure exists (`src/hooks/usePushNotifications.ts`, `/api/push`). Server-side delivery is stubbed; production push not yet wired.
 - **Files**:
   - `src/app/api/notifications/route.ts` (stub)
   - Client helpers `src/client/notifications.ts`
@@ -135,7 +145,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - **Testing/Safety**:
   - Graceful denial paths; feature flag by env.
 
-## 9) Accessibility and Safety (Scope §4.5)
+## 9) Accessibility and Safety (Scope §4.5) 🔄
+> **Partially implemented.** Crisis detection is live across all flows. Centralized crisis constants and automated axe/a11y audit pipeline not yet complete.
 - **Files**:
   - a11y checklist `docs/a11y.md`
   - Crisis text constants centralization `src/server/safety/constants.ts`
@@ -149,7 +160,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - Replace the blocked Naloxone video with an embeddable source or self-hosted MP4 with captions and a text transcript fallback.
 - 911/988 buttons: show a disabled/demo state with tooltip in non-production; wire to the device dialer in production builds.
 
-## 10) Testing Strategy (Scope §4.5, §4.2)
+## 10) Testing Strategy (Scope §4.5, §4.2) ⏳
+> **Pending.** Automated unit and e2e test suite not yet implemented. Manual testing checklists exist in `docs/step4_testing_guide.md`.
 - **Files**:
   - `tests/unit/*.test.ts` for coach taggers, mapping, advice phase logic
   - `tests/e2e/*.spec.ts` (Playwright) for onboarding/advice happy paths and crisis
@@ -163,7 +175,8 @@ This roadmap translates the v0 → v1 scope into concrete, incremental steps. Ea
 - **Testing/Safety**:
   - Add rate‑limit stubs; ensure OPENAI key missing → graceful fallbacks.
 
-## 11) Deployment/Config
+## 11) Deployment/Config 🔄
+> **Partially implemented.** Feature flags are documented and wired. `.env.example` may need final update with all flags.
 - **Files**:
   - `.env.example` updates (OPENAI_MODEL, FEATURE flags)
   - `README.md` v1 instructions
