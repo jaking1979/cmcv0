@@ -47,8 +47,8 @@ function OnboardingEntry({
 }) {
   // #region agent log
   React.useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FirstRunFlow.tsx:OnboardingEntry:mount',message:'OnboardingEntry scaffold rendered — placeholder shown instead of /onboarding',data:{preferredName},hypothesisId:'H-A',timestamp:Date.now()})}).catch(()=>{});
-  }, [])
+    console.log('[DEBUG OnboardingEntry] SCAFFOLD MOUNTED — this should NOT render after fix! preferredName=', preferredName)
+  }, [preferredName])
   // #endregion
   const nameStr = preferredName ? `, ${preferredName}` : ''
   return (
@@ -158,9 +158,12 @@ export function FirstRunFlow({
   // If localStorage still has ONBOARDING (e.g. from a previous session before the fix),
   // redirect to the actual onboarding page immediately.
   React.useEffect(() => {
+    // #region agent log
+    console.log('[DEBUG FirstRunFlow] appStage=', appStage, 'at', new Date().toISOString())
+    // #endregion
     if (appStage === 'ONBOARDING') {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FirstRunFlow.tsx:ONBOARDING-redirect',message:'appStage ONBOARDING detected — redirecting to /onboarding',data:{appStage},hypothesisId:'H-D',runId:'post-fix',timestamp:Date.now()})}).catch(()=>{});
+      console.log('[DEBUG FirstRunFlow] ONBOARDING stage detected — calling router.push(/onboarding)')
       // #endregion
       router.push('/onboarding')
     }

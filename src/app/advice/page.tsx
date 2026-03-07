@@ -82,7 +82,7 @@ export default function AdvicePage() {
 
   const handleChoose = useCallback((choice: 'onboarding' | 'talk-now' | 'team-intro') => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advice/page.tsx:handleChoose',message:'handleChoose called',data:{choice},hypothesisId:'H-A-H-B',runId:'post-fix',timestamp:Date.now()})}).catch(()=>{});
+    console.log('[DEBUG handleChoose] choice=', choice, 'at', new Date().toISOString())
     // #endregion
     updateMemory({ firstRunChoiceMade: choice })
     if (choice === 'talk-now') {
@@ -93,7 +93,7 @@ export default function AdvicePage() {
     } else {
       // Navigate directly to the onboarding page (already built at /onboarding)
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advice/page.tsx:handleChoose:onboarding-branch',message:'Navigating to /onboarding via router.push',data:{choice},hypothesisId:'H-B',runId:'post-fix',timestamp:Date.now()})}).catch(()=>{});
+      console.log('[DEBUG handleChoose] onboarding branch — calling router.push(/onboarding), current URL=', window.location.href)
       // #endregion
       updateMemory({ onboardingStarted: true })
       router.push('/onboarding')
