@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import { PwaProvider } from "@/components/PwaProvider";
+import { InstallPromptModal } from "@/components/InstallPromptModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,6 +50,7 @@ export default function RootLayout({
         style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
       >
         <PwaProvider />
+        <InstallPromptModal />
         {children}
       </body>
     </html>
