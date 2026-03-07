@@ -41,6 +41,8 @@ interface AdviceRequestBody {
 
 function systemPromptPreConsent(): string {
   return [
+    ITC_MASTER_PROMPT,
+    '',
     CRISIS_AND_SCOPE_GUARDRAILS,
     '',
     'You are Kato, an AI behavior coach built on the Invitation to Change approach. You are in an initial orientation conversation with someone new.',

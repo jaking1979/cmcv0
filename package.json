@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "generate:prompt": "node scripts/generateMasterPrompt.mjs",
+    "validate:prompt": "node scripts/validatePrompt.mjs",
+    "dev": "npm run generate:prompt && next dev",
+    "build": "npm run generate:prompt && next build",
     "start": "next start",
     "lint": "next lint"
   },
