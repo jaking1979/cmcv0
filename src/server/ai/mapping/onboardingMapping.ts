@@ -278,7 +278,7 @@ export async function mapTranscriptToFormulation(
     protection_map: { ...base.protection_map, ...(raw.protection_map ?? {}) },
     coach_profiles: {
       readiness:      { ...base.coach_profiles.readiness,      ...(raw.coach_profiles?.readiness      ?? {}) },
-      self_compassion:{ ...base.coach_profiles.self_compassion,..,(raw.coach_profiles?.self_compassion ?? {}) },
+      self_compassion:{ ...base.coach_profiles.self_compassion,...(raw.coach_profiles?.self_compassion ?? {}) },
       distress:       { ...base.coach_profiles.distress,       ...(raw.coach_profiles?.distress       ?? {}) },
       coping:         { ...base.coach_profiles.coping,         ...(raw.coach_profiles?.coping         ?? {}) },
       substance:      { ...base.coach_profiles.substance,      ...(raw.coach_profiles?.substance      ?? {}) },
