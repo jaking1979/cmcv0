@@ -22,33 +22,65 @@ export function MessageList({
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  if (messages.length === 0) return <div ref={endRef} />;
+
   return (
-    <div className={["space-y-4", className].filter(Boolean).join(' ')}>
+    <div className={['space-y-3', className].filter(Boolean).join(' ')}>
       {messages.map((m, idx) => {
         const isUser = m.role === 'user';
-        const bubbleBase = "max-w-[85%] whitespace-pre-wrap px-5 py-3.5 text-[15px] leading-relaxed slide-up";
-        const userBubble = "bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C] text-white glow-teal";
-        const asstBubble = "glass-medium shadow-soft border border-gray-200/50";
-        const borderRadius = isUser ? "rounded-3xl rounded-br-lg" : "rounded-3xl rounded-bl-lg";
+        const animClass = `slide-up stagger-${Math.min(idx, 5)}`;
 
+        if (isUser) {
+          return (
+            <div key={m.id} className={`flex justify-end ${animClass}`}>
+              <div
+                className="max-w-[78%] px-4 py-3 text-[15px] leading-relaxed text-wrap-anywhere text-white"
+                style={{
+                  background:
+                    'linear-gradient(135deg, var(--cmc-teal-500), var(--cmc-teal-700))',
+                  borderRadius: '20px 20px 4px 20px',
+                  boxShadow: '0 2px 12px rgba(63,168,156,0.25)',
+                }}
+              >
+                {renderHTML ? (
+                  <div dangerouslySetInnerHTML={{ __html: m.content }} />
+                ) : (
+                  m.content
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        // Assistant bubble
         return (
-          <div 
-            key={m.id} 
-            className={["flex", isUser ? "justify-end" : "justify-start", `stagger-${Math.min(idx, 5)}`].join(' ')}
-          >
-            {!isUser && showAvatars ? (
-              <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-[#B8AEE8] to-[#9B8FD9] mr-2 shadow-soft" />
-            ) : null}
-            <div className={[bubbleBase, isUser ? userBubble : asstBubble, borderRadius].join(' ')}>
+          <div key={m.id} className={`flex justify-start items-end gap-2 ${animClass}`}>
+            {showAvatars && (
+              <div
+                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold mb-0.5"
+                style={{
+                  background:
+                    'linear-gradient(135deg, var(--lavender-400), var(--lavender-500))',
+                }}
+              >
+                J
+              </div>
+            )}
+            <div
+              className="max-w-[82%] px-4 py-3 text-[15px] leading-relaxed text-wrap-anywhere"
+              style={{
+                background: '#FFFFFF',
+                borderRadius: '20px 20px 20px 4px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)',
+                color: 'var(--text-primary)',
+              }}
+            >
               {renderHTML ? (
-                <div dangerouslySetInnerHTML={{ __html: m.content }} className={isUser ? 'text-white' : 'text-gray-900'} />
+                <div dangerouslySetInnerHTML={{ __html: m.content }} />
               ) : (
-                <span className={isUser ? 'text-white' : 'text-gray-900'}>{m.content}</span>
+                m.content
               )}
             </div>
-            {isUser && showAvatars ? (
-              <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-[#7FD9CC] to-[#5ECBBC] ml-2 shadow-soft" />
-            ) : null}
           </div>
         );
       })}

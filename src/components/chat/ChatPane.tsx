@@ -15,6 +15,7 @@ type ChatPaneProps = {
   className?: string;
   footer?: React.ReactNode;
   renderHTML?: boolean;
+  placeholder?: string;
 };
 
 export function ChatPane({
@@ -27,33 +28,38 @@ export function ChatPane({
   className,
   footer,
   renderHTML = false,
+  placeholder,
 }: ChatPaneProps) {
   return (
-    <div 
-      className={[
-        "flex flex-col h-full",
-        "glass-light shadow-medium border border-gray-200/30",
-        "p-4 sm:p-5",
-        "fade-in",
-        className
-      ].filter(Boolean).join(' ')}
-      style={{ borderRadius: 'var(--radius-xl)' }}
+    <div
+      className={['flex flex-col h-full min-h-0', className].filter(Boolean).join(' ')}
     >
-      <div className="flex-1 min-h-0 overflow-y-auto mb-4 pr-1" aria-live="polite">
+      {/* Message area */}
+      <div
+        className="flex-1 min-h-0 overflow-y-auto chat-messages"
+        style={{ padding: '16px 4px 8px' }}
+        aria-live="polite"
+      >
         <MessageList messages={messages} renderHTML={renderHTML} />
       </div>
-      <div className="flex-shrink-0">
+
+      {/* Composer */}
+      <div className="flex-shrink-0 pt-3">
         <MessageComposer
           value={inputValue}
           onChange={onInputChange}
           onSend={onSend}
           disabled={disabled}
           isSending={isSending}
+          placeholder={placeholder}
         />
         {footer && (
-          <div className="mt-3 text-xs text-gray-600 leading-relaxed">
+          <p
+            className="mt-2 text-[11px] text-center leading-relaxed px-2 text-wrap-anywhere"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
             {footer}
-          </div>
+          </p>
         )}
       </div>
     </div>

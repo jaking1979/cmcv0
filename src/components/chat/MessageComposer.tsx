@@ -10,7 +10,43 @@ type MessageComposerProps = {
   isSending?: boolean;
   sendOnEnter?: boolean;
   className?: string;
+  placeholder?: string;
 };
+
+function SendIcon({ spinning }: { spinning?: boolean }) {
+  if (spinning) {
+    return (
+      <svg
+        className="animate-spin"
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      >
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </svg>
+  );
+}
 
 export function MessageComposer({
   value,
@@ -20,11 +56,11 @@ export function MessageComposer({
   isSending = false,
   sendOnEnter = true,
   className,
+  placeholder = 'Send a message',
 }: MessageComposerProps) {
-  const [inner, setInner] = React.useState(value ?? "");
+  const [inner, setInner] = React.useState(value ?? '');
   const ref = React.useRef<HTMLTextAreaElement | null>(null);
   const [isComposing, setIsComposing] = React.useState(false);
-  const [isFocused, setIsFocused] = React.useState(false);
 
   React.useEffect(() => {
     if (value !== undefined) setInner(value);
@@ -34,7 +70,7 @@ export function MessageComposer({
     const text = (value !== undefined ? value : inner).trim();
     if (!text) return;
     onSend(text);
-    if (value === undefined) setInner("");
+    if (value === undefined) setInner('');
     ref.current?.focus();
   }
 
@@ -46,65 +82,75 @@ export function MessageComposer({
     }
   }
 
+  const currentValue = value !== undefined ? value : inner;
+  const isEmpty = !currentValue.trim();
+  const isDisabled = disabled || isSending;
+
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); if (!disabled && !isSending) doSend(); }}
-      className={["flex items-end gap-3", className].filter(Boolean).join(' ')}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!isDisabled) doSend();
+      }}
+      className={['flex items-end gap-2', className].filter(Boolean).join(' ')}
     >
-      <textarea
-        ref={ref}
-        value={value !== undefined ? value : inner}
-        onChange={(e) => { onChange?.(e.target.value); if (value === undefined) setInner(e.target.value); }}
-        onKeyDown={onKeyDown}
-        onCompositionStart={() => setIsComposing(true)}
-        onCompositionEnd={() => setIsComposing(false)}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        placeholder="Type your message…"
-        className={`
-          flex-1 glass-light border-2 p-4
-          focus:outline-none focus:glass-medium
-          resize-none min-h-[44px] max-h-32
-          text-wrap-anywhere
-          transition-all duration-300
-          ${isFocused ? 'border-[#5ECBBC] glow-teal' : 'border-gray-200/50'}
-        `}
-        rows={1}
+      {/* Pill-shaped input */}
+      <div
+        className="flex-1 flex items-end transition-shadow duration-200"
         style={{
-          fieldSizing: 'content',
-          borderRadius: 'var(--radius-xl)'
-        } as any}
-        disabled={disabled || isSending}
-      />
+          background: 'rgba(0,0,0,0.05)',
+          borderRadius: 'var(--radius-2xl)',
+          minHeight: '50px',
+          padding: '12px 18px',
+        }}
+      >
+        <textarea
+          ref={ref}
+          value={currentValue}
+          onChange={(e) => {
+            onChange?.(e.target.value);
+            if (value === undefined) setInner(e.target.value);
+          }}
+          onKeyDown={onKeyDown}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
+          placeholder={placeholder}
+          className="w-full bg-transparent resize-none outline-none text-wrap-anywhere leading-relaxed"
+          style={{
+            fontSize: '16px',
+            lineHeight: '1.5',
+            color: 'var(--text-primary)',
+            maxHeight: '120px',
+            overflowY: 'auto',
+            minHeight: '24px',
+            fieldSizing: 'content',
+          } as React.CSSProperties}
+          rows={1}
+          disabled={isDisabled}
+        />
+      </div>
+
+      {/* Circular send button */}
       <button
         type="submit"
-        disabled={disabled || isSending || !(value !== undefined ? value.trim() : inner.trim())}
-        className="
-          bg-gradient-to-br from-[#5ECBBC] to-[#3FA89C]
-          text-white px-4 py-3 sm:px-5
-          text-sm font-semibold shadow-soft
-          hover:glow-teal-strong hover:scale-105
-          active:scale-95
-          focus:outline-none focus:glow-teal-strong
-          disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-          transition-all duration-300
-          min-h-[44px] min-w-[44px]
-          flex items-center justify-center
-        "
-        style={{ borderRadius: 'var(--radius-lg)' }}
-        aria-label={isSending ? 'Sending message' : 'Send message'}
+        disabled={isDisabled || isEmpty}
+        aria-label={isSending ? 'Sending…' : 'Send message'}
+        className="flex-shrink-0 flex items-center justify-center text-white transition-all duration-200"
+        style={{
+          width: '50px',
+          height: '50px',
+          borderRadius: '50%',
+          background:
+            isDisabled || isEmpty
+              ? 'rgba(0,0,0,0.12)'
+              : 'linear-gradient(135deg, var(--cmc-teal-500), var(--cmc-teal-700))',
+          boxShadow:
+            isDisabled || isEmpty ? 'none' : '0 4px 16px rgba(63,168,156,0.35)',
+          transform: isDisabled || isEmpty ? 'scale(0.92)' : 'scale(1)',
+          cursor: isDisabled || isEmpty ? 'not-allowed' : 'pointer',
+        }}
       >
-        {isSending ? (
-          <span className="flex items-center gap-1">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            <span className="hidden sm:inline">Sending…</span>
-          </span>
-        ) : (
-          <span>Send</span>
-        )}
+        <SendIcon spinning={isSending} />
       </button>
     </form>
   );
