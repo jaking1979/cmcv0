@@ -143,6 +143,194 @@ function mentionsSupports(text: string) {
   const t = (text || '').toLowerCase()
   return /(friend|uncle|aunt|mom|dad|partner|girlfriend|boyfriend|spouse|wife|husband|therap|group|meeting|sponsor|doctor|md|coach|support|community)/.test(t)
 }
+function mentionsFunction(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(relax|calm|numbs?|takes? (the )?edge|feel(s)? better|helps? me|escape|forget|cope|relief|wind down|unwinding|unwind|socialize)/.test(t)
+}
+function mentionsIdentity(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(who i am|who i'd be|who i would be|my identity|part of me|defines? me|without (drinking|using|it)|i'm (not )?(just |really )?(a |an )?(drinker|user|addict|alcoholic)|always been|how i see myself)/.test(t)
+}
+function mentionsStrengths(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(tried before|cut back before|quit for|was sober|i can|i've managed|proud|strong|resilient|value|good at|worked hard|fought through|pushed through|survived)/.test(t)
+}
+function mentionsReadiness(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(ready|not ready|thinking about|considering|want to change|don't want to|part of me wants|ambivalen|not sure (if|whether)|on the fence|maybe|someday|not yet)/.test(t)
+}
+
+/* -------- safety screen -------- */
+
+interface SafetyScreenResult {
+  triggered: boolean
+  type?: 'suicidality' | 'self_harm' | 'overdose' | 'withdrawal' | 'blackout' | 'domestic_violence'
+  response?: string
+}
+
+/**
+ * Expanded safety screen covering suicidality, overdose, withdrawal,
+ * blackout-with-risk, and domestic violence — replacing the simpler isCrisis().
+ * Returns a structured result so callers can attach metadata.
+ */
+function safetyScreen(text: string): SafetyScreenResult {
+  const t = (text || '').toLowerCase()
+
+  const falsePositives = [
+    /kill time/,
+    /this game.*kill me/,
+    /die of laughter|dying of laughter/,
+    /harm reduction/,
+    /overdose (awareness|prevention|education)/,
+  ]
+  const isFalsePositive = falsePositives.some(re => re.test(t))
+
+  // Suicidality / self-harm
+  const suicidalPatterns = [
+    /\bkill myself\b/, /\btake my own life\b/, /\bend my life\b/,
+    /\bsuicid(e|al)\b/, /\bhurt myself\b/, /\bharm myself\b/,
+    /\bdon'?t want to (be here|live|exist)\b/,
+    /\bwish i (was|were) dead\b/,
+  ]
+  if (!isFalsePositive && suicidalPatterns.some(re => re.test(t))) {
+    return {
+      triggered: true,
+      type: 'suicidality',
+      response: `Thank you for telling me that. What you're describing matters, and it's more than I can hold safely on my own. If you're thinking about ending your life or hurting yourself, please reach out to the 988 Suicide and Crisis Lifeline — call or text 988, anytime. If you're in immediate danger, please call 911. I'm still here, and I want to understand more about where you are right now — would it be okay to stay with this a moment?`,
+    }
+  }
+
+  // Overdose risk
+  const overdosePatterns = [
+    /\boverdos(e|ing|ed)\b/,
+    /\bod'?d?\b(?![a-zA-Z])/,
+    /\btook too (much|many)\b/,
+  ]
+  if (!isFalsePositive && overdosePatterns.some(re => re.test(t))) {
+    return {
+      triggered: true,
+      type: 'overdose',
+      response: `I want to make sure you're okay right now. If you or someone near you may be overdosing, please call 911 immediately — this is a medical emergency. For naloxone access or overdose prevention support, SAMHSA is available at 1-800-662-4357. Can you tell me more about what's happening right now?`,
+    }
+  }
+
+  // Withdrawal risk (physical symptoms that can be medically serious)
+  const withdrawalPatterns = [
+    /\bwithdraw(al|ing|n)\b/,
+    /\bdope\s*sick\b/,
+    /\bsick from (stopping|quitting|not (drinking|using))\b/,
+    /\bseizure from (alcohol|drinking|stopping)\b/,
+    /\bshaking (from|because|since) (quitting|stopping|not drinking)\b/,
+    /\bsweating (from|because|since) (quitting|stopping|not drinking)\b/,
+  ]
+  if (withdrawalPatterns.some(re => re.test(t))) {
+    return {
+      triggered: true,
+      type: 'withdrawal',
+      response: `What you're describing sounds like it could be physical withdrawal, which can be medically serious — especially with alcohol or certain other substances. Please consider contacting a doctor or calling SAMHSA's helpline at 1-800-662-4357; they can connect you with medical support. Are you somewhere safe right now?`,
+    }
+  }
+
+  // Blackout pattern with unsafe circumstances
+  const blackoutPattern = /(blacked out|blackout|don'?t remember (what|where|how|anything)|lost (consciousness|time|hours|the night))/
+  const unsafeContext = /(dangerous|hurt|accident|drove|driving|alone|unsafe|strange place|didn'?t know where)/
+  if (blackoutPattern.test(t) && unsafeContext.test(t)) {
+    return {
+      triggered: true,
+      type: 'blackout',
+      response: `I'm hearing something that concerns me — losing memory or consciousness in unsafe situations carries real physical risk, and I want to take that seriously. Are you in a safe place right now? And can you tell me a bit more about what happened?`,
+    }
+  }
+
+  // Domestic violence / physical danger
+  const dvPatterns = [
+    /\bhe (hit|beat|hurt|choked|threatened|grabbed) me\b/,
+    /\bshe (hit|beat|hurt|choked|threatened|grabbed) me\b/,
+    /\bbeing (abused|hurt|threatened) by\b/,
+    /\bafraid of (my partner|him|her|them)\b/,
+    /\bdomestic violence\b/,
+    /\bhe'?s? going to (hurt|kill) me\b/,
+    /\bshe'?s? going to (hurt|kill) me\b/,
+  ]
+  if (dvPatterns.some(re => re.test(t))) {
+    return {
+      triggered: true,
+      type: 'domestic_violence',
+      response: `What you just shared is important and I don't want to gloss over it. If you're in a situation where you feel unsafe with a partner or anyone in your home, the National Domestic Violence Hotline is available 24/7 at 1-800-799-7233 — you can also text START to 88788. You don't have to navigate this alone. Are you safe right now?`,
+    }
+  }
+
+  return { triggered: false }
+}
+
+/** Thin backward-compat wrapper used in the existing route logic. */
+function isCrisis(text: string): boolean {
+  return safetyScreen(text).triggered
+}
+
+/* -------- segment tracking -------- */
+
+/**
+ * Derive which of the 10 onboarding domains we are likely in
+ * based on coverage heuristics. Returns 0–9.
+ */
+function deriveCurrentSegment(history: Msg[], latest: string): number {
+  const blob = conversationText(history, latest)
+  const userTurns = history.filter(m => m.role === 'user').length
+
+  // Domain 0 — Opening: always covered once they say anything substantive
+  if (userTurns < 1) return 0
+
+  // Domain 1 — Behavior pattern
+  if (!mentionsFrequency(blob)) return 1
+
+  // Domain 2 — Function: what the behavior gives them
+  if (!mentionsFunction(blob) && userTurns < 4) return 2
+
+  // Domain 3 — Costs & consequences
+  if (!mentionsConsequences(blob)) return 3
+
+  // Domain 4 — Motivation & goals
+  if (!hasGoal(blob)) return 4
+
+  // Domain 5 — Identity
+  if (!mentionsIdentity(blob) && userTurns < 7) return 5
+
+  // Domain 6 — Supports
+  if (!mentionsSupports(blob)) return 6
+
+  // Domain 7 — Strengths
+  if (!mentionsStrengths(blob) && userTurns < 9) return 7
+
+  // Domain 8 — Readiness & ambivalence
+  if (!mentionsReadiness(blob) && userTurns < 11) return 8
+
+  // Domain 9 — Closing
+  return 9
+}
+
+/**
+ * Whether a given segment has gathered "enough signal" to be considered covered.
+ * Used by the route to decide whether to advance the segment counter.
+ */
+function hasEnoughSignal(segment: number, history: Msg[], latest: string): boolean {
+  const blob = conversationText(history, latest)
+  const userTurns = history.filter(m => m.role === 'user').length
+
+  switch (segment) {
+    case 0: return userTurns >= 1
+    case 1: return mentionsFrequency(blob)
+    case 2: return mentionsFunction(blob) || userTurns >= 4
+    case 3: return mentionsConsequences(blob)
+    case 4: return hasGoal(blob)
+    case 5: return mentionsIdentity(blob) || userTurns >= 7
+    case 6: return mentionsSupports(blob)
+    case 7: return mentionsStrengths(blob) || userTurns >= 9
+    case 8: return mentionsReadiness(blob) || userTurns >= 11
+    case 9: return true
+    default: return false
+  }
+}
 
 /* -------- flow helpers -------- */
 function conversationText(history: Msg[], latest: string) {
@@ -169,15 +357,17 @@ function coverageScore(history: Msg[], latest: string) {
 
 function shouldOfferSummaryNow(history: Msg[], latest: string) {
   const userTurns = history.filter(m => m.role === 'user').length
-  if (userTurns < 8) return false                // Increased from 6
+  if (userTurns < 8) return false
+
   const score = coverageScore(history, latest)
-  
-  // V1: Require higher confidence threshold
+
+  // V1: require coverage of ≥7 of 10 domains AND ≥10 user turns
   if (isV1Enabled()) {
-    return score >= 5 && userTurns >= 10  // Even more stringent for v1
+    const segment = deriveCurrentSegment(history, latest)
+    return score >= 5 && userTurns >= 10 && segment >= 7
   }
-  
-  return score >= 5                               // Increased from 4
+
+  return score >= 5
 }
 
 function wantsFinish(text: string) {
@@ -290,18 +480,22 @@ async function callOpenAI(messages: Msg[], max_tokens = 650) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { input, history = [], finalize = false } = await req.json() as {
+    const { input, history = [], finalize = false, segment: clientSegment } = await req.json() as {
       input: string
       history?: Msg[]
       finalize?: boolean
+      segment?: number   // 0-9; client may pass current segment, server derives if absent
     }
 
-    // Crisis check
-    if (isCrisis(input)) {
-      const crisis =
-        "Thank you for sharing that. What you’re describing needs immediate support beyond what I can provide. If you’re in danger, please call 911. If you’re feeling suicidal or thinking of harming yourself, please call 988."
-      return new Response(crisis, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+    // Safety screen — expanded beyond simple crisis check
+    const safety = safetyScreen(input)
+    if (safety.triggered) {
+      return new Response(safety.response ?? '', {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Safety-Type': safety.type ?? 'unknown',
+        },
       })
     }
 
@@ -310,6 +504,14 @@ export async function POST(req: NextRequest) {
     const base: Msg[] = [{ role: 'system', content: systemPrompt }]
     const prior = (history || []).filter(m => m.role === 'user' || m.role === 'assistant')
     const transcriptWithCurrent = prior.concat({ role: 'user', content: input || '' })
+
+    // Derive current segment (use client hint if valid, otherwise compute)
+    const currentSegment =
+      typeof clientSegment === 'number' && clientSegment >= 0 && clientSegment <= 9
+        ? clientSegment
+        : deriveCurrentSegment(prior, input)
+    const segmentComplete = hasEnoughSignal(currentSegment, prior, input)
+    const nextSegment = segmentComplete ? Math.min(currentSegment + 1, 9) : currentSegment
 
     // If last turn was a summary offer and user said yes now, produce the summary.
     if (lastTurnWasOfferAndUserSaidYes(transcriptWithCurrent) || userAskedForSummary(input || '')) {
@@ -324,7 +526,12 @@ export async function POST(req: NextRequest) {
       const summary = await callOpenAI(messages, 1500)
       const cleanSummary = stripHtmlComments(summary || '')
       return new Response(cleanSummary.trim(), {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Summary-Complete': '1' },
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Summary-Complete': '1',
+          'X-Onboarding-Segment': String(nextSegment),
+        },
       })
     }
 
@@ -339,10 +546,15 @@ export async function POST(req: NextRequest) {
           content: `Here is the full transcript as JSON array of {role,content}. Write the intake summary report now:\n\n${JSON.stringify(transcript)}`,
         },
       ]
-      let text = await callOpenAI(messages, 1500)
-      const cleanText = stripHtmlComments(text || '')
-      return new Response(cleanText.trim(), {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Summary-Complete': '1' },
+      const finText = await callOpenAI(messages, 1500)
+      const cleanFinText = stripHtmlComments(finText || '')
+      return new Response(cleanFinText.trim(), {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Summary-Complete': '1',
+          'X-Onboarding-Segment': String(nextSegment),
+        },
       })
     }
 
@@ -351,10 +563,14 @@ export async function POST(req: NextRequest) {
       const intercept = skillsIntercept(prior, input)
       if (intercept) {
         return new Response(intercept, {
-          headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Onboarding-Segment': String(currentSegment),
+          },
         })
       }
-      // else: allow model to proceed (we might later swap modes on the client)
+      // else: allow model to proceed
     }
 
     // Offer summary only when thresholds met and not offered/summarized recently
@@ -368,7 +584,11 @@ export async function POST(req: NextRequest) {
       const permission = `I can draft a brief intake summary from what we've discussed. Would you like to see it now? ${OFFER_MARK}`
       const cleanPermission = stripHtmlComments(permission)
       return new Response(cleanPermission, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Onboarding-Segment': String(nextSegment),
+        },
       })
     }
 
@@ -380,7 +600,12 @@ export async function POST(req: NextRequest) {
       const fb = buildFallback(input || '')
       console.warn('[onboarding] Empty OpenAI content; returning fallback.')
       return new Response(fb, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Onboarding-Fallback': '1' },
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Onboarding-Fallback': '1',
+          'X-Onboarding-Segment': String(currentSegment),
+        },
       })
     }
 
@@ -388,7 +613,11 @@ export async function POST(req: NextRequest) {
     const cleanText = stripHtmlComments(text)
 
     return new Response(cleanText, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Onboarding-Segment': String(nextSegment),
+      },
     })
   } catch (e) {
     console.error('[onboarding] Handler error:', e)
@@ -399,27 +628,4 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function isCrisis(text: string): boolean {
-  const t = (text || '').toLowerCase()
-  const strong = [
-    /\bkill myself\b/,
-    /\btake my own life\b/,
-    /\bend my life\b/,
-    /\bsuicid(e|al)\b/,
-    /\bhurt myself\b/,
-    /\bharm myself\b/,
-    /\boverdose\b/,
-    /\bod\b(?![a-z])/,
-  ]
-  if (strong.some(re => re.test(t))) {
-    const falsePositives = [
-      /kill time/,
-      /this game.*kill me/,
-      /die of laughter|dying of laughter/,
-      /harm reduction/,
-    ]
-    if (falsePositives.some(re => re.test(t))) return false
-    return true
-  }
-  return false
-}
+// isCrisis() is defined above as a thin wrapper around safetyScreen().
