@@ -21,37 +21,42 @@ const SYSTEM_PROMPT_V1 = [
   '',
   ONBOARDING_V1_PROMPT,
 ].join('\n').trim()
+const SPOKEN_SUMMARY_PROMPT = `
+SPOKEN SUMMARY — generate this now. Do not ask another intake question.
+
+Deliver the spoken summary in this order:
+1. Open with: "Here's what I'm hearing from you." (or a natural variation)
+2. 2–3 sentences: what they've shared about their use, what brought them here, and their goal — even if it's vague or undecided
+3. 1–2 sentences: what tends to make it hard AND what has helped or could help, even a little
+4. 1 sentence: one thing you noticed about how they approach this or what they bring to it, framed supportively
+5. End with: "This is a first pass — I'll get a better picture as we keep talking. Does this feel roughly right, or is there something important I missed?"
+6. After a line break, add exactly this line: "Would you like me to write up a fuller version you can keep?"
+
+Total: ≤130 words. Plain conversational language only. No headers, no bullets, no clinical terms, no stage names.
+`.trim()
+
 const FINALIZE_PROMPT = `
-You are generating a rich, plain-language intake summary for the user from the FULL conversation transcript. Do not invent facts; ground every statement in what the user actually said or clearly implied.
+You are writing the fuller onboarding summary for the user.
 
-IMPORTANT: Do not include any HTML comments, tags, or markup. Output only clean Markdown text.
+RULES — any violation is a failure:
+- Plain conversational prose only — NO markdown headers (# or ##), NO bold labels (**text**), NO bullet lists
+- NO clinical instrument names: do not write URICA, K10, WHO-5, DBT-WCCL, ASSIST, ASI, or any readiness stage names
+- NO diagnoses, disorder labels, or stage language (precontemplation, contemplation, etc.)
+- Ground every sentence in what the user actually said — do not invent or extrapolate beyond the transcript
+- Do not moralize, push toward change, or reframe pain as growth
+- Do not use clinical jargon: no "relapse," "dependence," "disorder," "addict"
 
-Format STRICTLY as GitHub-flavored Markdown with proper spacing:
+Write exactly 3–4 plain paragraphs separated by blank lines:
 
-# Intake Summary
-A clear, person-centered narrative (220–320 words) in plain language describing who they are in this context, what they're navigating, their goals/concerns, relevant patterns (what/when/how often), triggers, consequences (health/relationships/work/legal/financial), supports, and motivation. No diagnoses. No clinical jargon.
+Paragraph 1: What they shared about their use, what brought them here, and their goal — even if the goal is "not sure yet." Use their own words where possible.
 
-## What We Heard
-- 6–9 short bullets in the user's own phrasing where possible
-- Each bullet should capture a distinct fact or theme from the transcript
+Paragraph 2: What tends to make it hard — the specific triggers, situations, or feelings they named. Be concrete, tied to what they said, not general.
 
-## Strengths & Supports
-- 3–5 bullets that reflect values, efforts, relationships, and resources the user mentioned
+Paragraph 3: What helps, even a little — people, routines, past stretches when things went better, or anything they identified as a resource.
 
-## Assessment Insights
-**Self-Compassion Patterns:** How they treat themselves during difficult times (based on conversation)
-**Change Readiness (URICA):** Name the likely stage and give a 1–2 sentence rationale tied to what the user said
-**Emotional Wellbeing (K10/WHO-5):** Current mood, energy, and distress levels observed
-**Coping Strategies (DBT-WCCL):** What they currently do when stressed or triggered
-**Coping Self-Efficacy:** Their confidence in handling difficult situations without substances
-**Substance Use Patterns (ASSIST):** Risk level and patterns observed from conversation
-**Areas to Watch (ASI domains):**
-- Relationships — one-line observation tied to the transcript
-- Work/Employment — one-line observation tied to the transcript
-- Family/Social — one-line observation tied to the transcript
+Paragraph 4 (include only if there is enough material): One thing that stands out as a useful place to begin. Frame it as a first hypothesis, not a plan or prescription. End the paragraph with: "This is a first pass — we'll fill in more as we keep talking."
 
-## Gentle Caveat
-This is a behavior-coaching intake summary, not a medical or diagnostic assessment.
+Maximum 200 words total. No markdown. No headers. Plain paragraphs separated by blank lines only.
 `.trim()
 
 const OFFER_MARK = '<!--OFFER_SUMMARY-->'
@@ -314,18 +319,12 @@ function coverageScore(history: Msg[], latest: string) {
 
 function shouldOfferSummaryNow(history: Msg[], latest: string) {
   const userTurns = history.filter(m => m.role === 'user').length
-  if (userTurns < 8) return false
-
+  if (userTurns < 12) return false
   const score = coverageScore(history, latest)
-
-  // V1: require coverage of ≥6 of 8 signal domains AND ≥10 user turns
-  // (safety and communication style may not be explicitly mentioned; rely on turn count)
-  if (isV1Enabled()) {
-    const segment = deriveCurrentSegment(history, latest)
-    return score >= 6 && userTurns >= 10 && segment >= 7
-  }
-
-  return score >= 5
+  const segment = deriveCurrentSegment(history, latest)
+  // Require meaningful coverage AND segment 9 (wrap-up domain) AND minimum turn count.
+  // Segment 9 is reached only after communication style and safety are addressed.
+  return score >= 5 && userTurns >= 12 && segment >= 9
 }
 
 function wantsFinish(text: string) {
@@ -627,7 +626,7 @@ export async function POST(req: NextRequest) {
       // else: allow model to proceed
     }
 
-    // Offer summary only when thresholds met and not offered/summarized recently
+    // Segment 9 close: generate spoken summary via model, then offer written version
     const readyToOffer = shouldOfferSummaryNow(prior, input)
     if (
       readyToOffer &&
@@ -635,13 +634,22 @@ export async function POST(req: NextRequest) {
       !hasOfferedSummaryRecently(prior) &&
       !hasRecentlySummarized(prior)
     ) {
-      const permission = `I can draft a brief intake summary from what we've discussed. Would you like to see it now? ${OFFER_MARK}`
-      const cleanPermission = stripHtmlComments(permission)
-      return new Response(cleanPermission, {
+      const spokenConvo: Msg[] = [
+        ...base,
+        ...prior,
+        { role: 'system', content: SPOKEN_SUMMARY_PROMPT },
+        { role: 'user', content: input || '' },
+      ]
+      const spokenText = await callOpenAI(spokenConvo, 300, 0.5)
+      // Append OFFER_MARK so lastTurnWasOfferAndUserSaidYes() can detect it next turn
+      const spokenWithMark = `${spokenText || ''}\n${OFFER_MARK}`.trim()
+      const cleanSpoken = stripHtmlComments(spokenWithMark)
+      return new Response(cleanSpoken, {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Cache-Control': 'no-store',
           'X-Onboarding-Segment': String(nextSegment),
+          'X-Spoken-Summary': '1',
         },
       })
     }

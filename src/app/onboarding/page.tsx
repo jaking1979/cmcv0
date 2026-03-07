@@ -3,39 +3,10 @@
 import { useEffect, useState } from 'react'
 import TopNav from '@/components/TopNav'
 import { ChatPane } from '@/components/chat'
-import AssessmentProgressMeter from '@/components/AssessmentProgressMeter'
 import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay'
 import BottomNav, { NavSpacer } from '@/components/BottomNav'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
-
-interface AssessmentProfile {
-  sessionId: string
-  timestamp: number
-  constructs: {
-    selfCompassion: any
-    urica: any
-    kessler10: any
-    who5: any
-    dbtWccl: any
-    copingSelfEfficacy: any
-    assist: any
-    asi: any
-  }
-  confidence: {
-    selfCompassion: number
-    urica: number
-    kessler10: number
-    who5: number
-    dbtWccl: number
-    copingSelfEfficacy: number
-    assist: number
-    asi: number
-    overall: number
-  }
-  rawTranscript: string
-  redactedTranscript: string
-}
 
 export default function OnboardingPage() {
   const [messages, setMessages] = useState<Msg[]>([])
@@ -47,9 +18,7 @@ export default function OnboardingPage() {
   const [showTour, setShowTour] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isV1Enabled, setIsV1Enabled] = useState(true)
-  const [assessmentProfile, setAssessmentProfile] = useState<AssessmentProfile | null>(null)
   const [showDisclaimer, setShowDisclaimer] = useState(false)
-  const [hasTriggeredTargetedMode, setHasTriggeredTargetedMode] = useState(false)
 
   useEffect(() => {
     document.title = 'Onboarding — CMC Sober Coach'
@@ -68,17 +37,6 @@ export default function OnboardingPage() {
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('v1') === '0') {
       setIsV1Enabled(false)
-      setAssessmentProfile(null)
-    } else {
-      const initialProfile: AssessmentProfile = {
-        sessionId: `session_${Date.now()}`,
-        timestamp: Date.now(),
-        constructs: { selfCompassion: {}, urica: {}, kessler10: {}, who5: {}, dbtWccl: {}, copingSelfEfficacy: {}, assist: {}, asi: {} },
-        confidence: { selfCompassion: 0, urica: 0, kessler10: 0, who5: 0, dbtWccl: 0, copingSelfEfficacy: 0, assist: 0, asi: 0, overall: 0 },
-        rawTranscript: '',
-        redactedTranscript: '',
-      }
-      setAssessmentProfile(initialProfile)
     }
     if (process.env.NEXT_PUBLIC_LEGAL_ASSESSMENT_DISCLAIMER === '1') setShowDisclaimer(true)
   }, [])
@@ -141,7 +99,6 @@ export default function OnboardingPage() {
     try {
       await fetchAndFill('/api/onboarding', { input: text, history: messages.slice(-12), finalize: false }, assistantIndex, true)
       if (isV1Enabled && nextMessages.length >= 1) {
-        updateAssessmentProfile(nextMessages)
         triggerAssessmentMapping(nextMessages).catch(console.error)
       }
     } catch {
@@ -149,39 +106,6 @@ export default function OnboardingPage() {
       setMessages(prev => prev.slice(0, -1))
     } finally {
       setLoading(false)
-    }
-  }
-
-  function updateAssessmentProfile(conversationMessages: Msg[]) {
-    const messageCount = conversationMessages.filter(m => m.role === 'user').length
-    const mockProfile: AssessmentProfile = {
-      sessionId: `session_${Date.now()}`,
-      timestamp: Date.now(),
-      constructs: { selfCompassion: {}, urica: {}, kessler10: {}, who5: {}, dbtWccl: {}, copingSelfEfficacy: {}, assist: {}, asi: {} },
-      confidence: {
-        selfCompassion: Math.min(0.85, Math.max(0, (messageCount - 0.5) * 0.15)),
-        urica: Math.min(0.9, Math.max(0, messageCount * 0.18)),
-        kessler10: Math.min(0.8, Math.max(0, (messageCount - 1) * 0.16)),
-        who5: Math.min(0.75, Math.max(0, (messageCount - 1.5) * 0.14)),
-        dbtWccl: Math.min(0.7, Math.max(0, (messageCount - 2) * 0.12)),
-        copingSelfEfficacy: Math.min(0.8, Math.max(0, (messageCount - 2.5) * 0.13)),
-        assist: Math.min(0.95, Math.max(0, messageCount * 0.19)),
-        asi: Math.min(0.85, Math.max(0, (messageCount - 0.5) * 0.17)),
-        overall: Math.min(0.85, Math.max(0, messageCount * 0.12)),
-      },
-      rawTranscript: conversationMessages.map(msg => `${msg.role}: ${msg.content}`).join('\n'),
-      redactedTranscript: conversationMessages.map(msg => `${msg.role}: ${msg.content}`).join('\n'),
-    }
-    setAssessmentProfile(mockProfile)
-    const confidenceValues = Object.values(mockProfile.confidence).slice(0, -1)
-    if (confidenceValues.every(conf => conf >= 0.7) && !hasTriggeredTargetedMode) {
-      setHasTriggeredTargetedMode(true)
-      setTimeout(() => {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: "I have a good understanding of your situation now. Let me shift to asking a few more specific questions to complete your assessment. How would you rate your confidence in your ability to handle stressful situations without turning to substances, on a scale from 1 to 10?",
-        }])
-      }, 1000)
     }
   }
 
@@ -194,8 +118,8 @@ export default function OnboardingPage() {
         body: JSON.stringify({ sessionId: `session_${Date.now()}`, transcript }),
       })
       if (response.ok) {
-        const data = await response.json()
-        if (data.success && data.profile) setAssessmentProfile(data.profile)
+        // Background V1 formulation mapping — result consumed by server-side pipeline
+        await response.json()
       }
     } catch (error) {
       console.error('Assessment mapping failed:', error)
@@ -235,14 +159,6 @@ export default function OnboardingPage() {
         onShowInstructions={() => setShowInstructions(true)}
         badge={isV1Enabled ? 'v1' : undefined}
       />
-
-      {/* V1: Assessment Progress Meter */}
-      {isV1Enabled && assessmentProfile && (
-        <AssessmentProgressMeter
-          confidence={assessmentProfile.confidence}
-          isSticky={true}
-        />
-      )}
 
       {/* Error banner */}
       {error && (

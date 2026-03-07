@@ -67,7 +67,7 @@ export function MessageList({
               </div>
             )}
             <div
-              className="max-w-[82%] px-4 py-3 text-[15px] leading-relaxed text-wrap-anywhere"
+              className="max-w-[82%] px-4 py-3 text-[15px] leading-relaxed text-wrap-anywhere whitespace-pre-line"
               style={{
                 background: '#FFFFFF',
                 borderRadius: '20px 20px 20px 4px',
