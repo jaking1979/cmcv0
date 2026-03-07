@@ -1,83 +1,26 @@
 import 'server-only'
 import { NextRequest } from 'next/server'
-import { CRISIS_AND_SCOPE_GUARDRAILS, ONBOARDING_V1_PROMPT } from '@/server/ai/promptFragments'
+import { ITC_MASTER_PROMPT, CRISIS_AND_SCOPE_GUARDRAILS, ONBOARDING_V1_PROMPT } from '@/server/ai/promptFragments'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
 if (!OPENAI_API_KEY) console.warn('[onboarding] Missing OPENAI_API_KEY')
 
 type Msg = { role: 'user'|'assistant'|'system'; content: string }
 
-// Feature flag check
+// Feature flag check — used only for the onboarding map pipeline (shouldOfferSummaryNow).
+// The conversational system prompt is always V1; V0 has been retired.
 function isV1Enabled(): boolean {
   return process.env.FEATURE_V1 === '1' && process.env.FEATURE_ONBOARDING_MAP === '1'
 }
 
-// V0 Onboarding intake: coach-like, efficient, roadmap-driven (not MI-first, not scripted)
-const SYSTEM_PROMPT_V0 = `
-You are CMC Sober Coach, an AI **behavior coach** (not a therapist). You do not diagnose.
-
-**Mode: INTAKE (Onboarding)**
-Your job is to quickly learn how this person tends to make choices in tough moments so future coaching fits them. Keep a **coach-like intake** stance: plain language, warm but efficient, curious and practical.
-
-**Tone & Interaction**
-- Short acknowledgments ("Makes sense.", "Got it.") then move forward.
-- Ask **one focused question at a time**; keep replies ~140–160 words.
-- Avoid sounding like a survey or checklist; keep it conversational.
-- Use reflections sparingly (1 short sentence max) to show understanding.
-
-**What to learn (behavioral map seed)**
-Capture enough to infer (without naming tools to the user):
-- **Decision style:** pause vs. act fast; planned vs. in-the-moment.
-- **Supports & coping:** who/what helps; solo vs. reach out.
-- **Motives:** short-term relief vs. long-term values/identity.
-- **Contexts & triggers:** when/where urges show (e.g., evenings, work stress, social, boredom, travel).
-- **Patterns:** what/when/how often/how much (plain language).
-- **Consequences:** recent impacts (sleep, mood/health, relationships, work/legal/financial).
-- **Motivation & goals:** cut back, stop, undecided; confidence.
-
-**Do NOT** provide skills/advice/action menus during intake unless the server switches modes or the user explicitly asks for skills. If they ask for skills, acknowledge and ask **one** most relevant intake question to keep gathering essentials first.
-
-**Summary etiquette**
-- When you believe you have enough info for a first pass summary, **ask permission with a single yes/no** question only: "I can draft a brief intake summary from what we've discussed. Would you like to see it now?" Do not include the summary in the same turn.
-
-**Targeted questioning mode**
-- When you receive a message indicating you should shift to targeted questioning (like "I have a good understanding..."), switch to asking specific, focused questions to complete the assessment.
-- Ask one targeted question at a time about specific assessment domains: self-compassion, coping strategies, confidence levels, life areas affected, etc.
-- Use scales (1-10), specific scenarios, or direct questions to gather precise information.
-- Keep the same warm, coach-like tone but be more direct and specific.
-
-**Crisis safety**
-- If imminent risk is expressed, respond only with the crisis message and stop.
-`.trim()
-
-// V1 Onboarding intake: practical-curiosity protocol for assessment mapping
-const SYSTEM_PROMPT_V1 = `
-${CRISIS_AND_SCOPE_GUARDRAILS}
-
-${ONBOARDING_V1_PROMPT}
-
-**Assessment Mapping Focus**
-Through natural conversation, gather information that helps us understand:
-- **Self-compassion patterns:** How they treat themselves during difficult times
-- **Change readiness:** Where they are in their journey (precontemplation to maintenance)
-- **Emotional wellbeing:** Current mood, energy, and distress levels
-- **Coping strategies:** What they currently do when stressed or triggered
-- **Substance patterns:** Current use, frequency, and impact (if relevant)
-- **Support systems:** Who and what helps them through challenges
-- **Life domains:** How their situation affects work, relationships, health, legal matters
-
-**Important:** Never ask assessment questions directly. Instead, use open-ended questions that naturally elicit this information through storytelling and reflection.
-
-**Summary etiquette**
-- When you have sufficient information (typically after 6-8 exchanges), ask permission: "I can draft a brief intake summary from what we've discussed. Would you like to see it now?"
-- Do not include the summary in the same turn.
-
-**Targeted questioning mode**
-- When you receive a message indicating you should shift to targeted questioning (like "I have a good understanding..."), switch to asking specific, focused questions to complete the assessment.
-- Ask one targeted question at a time about specific assessment domains: self-compassion, coping strategies, confidence levels, life areas affected, etc.
-- Use scales (1-10), specific scenarios, or direct questions to gather precise information.
-- Keep the same warm, coach-like tone but be more direct and specific.
-`.trim()
+// Onboarding intake: ITC-first, conversation-led, domain-aware
+const SYSTEM_PROMPT_V1 = [
+  ITC_MASTER_PROMPT,
+  '',
+  CRISIS_AND_SCOPE_GUARDRAILS,
+  '',
+  ONBOARDING_V1_PROMPT,
+].join('\n').trim()
 const FINALIZE_PROMPT = `
 You are generating a rich, plain-language intake summary for the user from the FULL conversation transcript. Do not invent facts; ground every statement in what the user actually said or clearly implied.
 
@@ -515,7 +458,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Choose system prompt based on feature flags
-    const systemPrompt = isV1Enabled() ? SYSTEM_PROMPT_V1 : SYSTEM_PROMPT_V0
+    const systemPrompt = SYSTEM_PROMPT_V1
     const base: Msg[] = [{ role: 'system', content: systemPrompt }]
     const prior = (history || []).filter(m => m.role === 'user' || m.role === 'assistant')
     const transcriptWithCurrent = prior.concat({ role: 'user', content: input || '' })
