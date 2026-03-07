@@ -40,7 +40,7 @@ export default function AdvicePage() {
     appStage, setAppStage,
     messages, addMessage, clearMessages,
     status, isBusy, send, error, clearError,
-    memory, updateMemory,
+    memory, updateMemory, resetUser,
     activeCoach, setActiveCoach,
   } = useChatState()
 
@@ -259,6 +259,22 @@ export default function AdvicePage() {
               : "What's on your mind?"
           }
         />
+
+        {/* Reset — dev/founder convenience, clears all local user state */}
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void resetUser()}
+            className="text-xs font-medium px-3 py-1.5 rounded-full transition-opacity opacity-40 hover:opacity-100"
+            style={{
+              color: '#991B1B',
+              background: 'rgba(254,226,226,0.9)',
+              border: '1px solid rgba(252,165,165,0.5)',
+            }}
+          >
+            Start over as a new user
+          </button>
+        </div>
       </div>
 
       <NavSpacer />

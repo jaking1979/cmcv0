@@ -19,8 +19,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatMessage } from '@/components/chat/types'
 import type { AppStage } from '@/lib/appState'
-import { loadAppStage, saveAppStage } from '@/lib/appState'
-import { getUserId } from '@/lib/userIdentity'
+import { clearAppStage, loadAppStage, saveAppStage } from '@/lib/appState'
+import { clearUserId, getUserId } from '@/lib/userIdentity'
 import { localStorageStore } from '@/lib/memory/localStorageStore'
 import type { UserMemory } from '@/lib/memory/types'
 import { buildMemorySummary, createEmptyMemory } from '@/lib/memory/types'
@@ -60,6 +60,7 @@ export interface ChatStateReturn {
   userId: string
   memory: UserMemory
   updateMemory: (patch: Partial<UserMemory>) => Promise<void>
+  resetUser: () => Promise<void>
 
   // Active coach
   activeCoach: CoachId | null
@@ -124,6 +125,32 @@ export function useChatState(): ChatStateReturn {
   const updateMemory = useCallback(async (patch: Partial<UserMemory>) => {
     const updated = await localStorageStore.update(userId, patch)
     setMemory(updated)
+  }, [userId])
+
+  // ── Full user reset ───────────────────────────────────────────────────────
+  // Wipes all localStorage state for this user and reloads so a brand-new
+  // anonymous ID is generated and the app starts again at PRE_CONSENT.
+  const resetUser = useCallback(async () => {
+    if (typeof window === 'undefined') return
+
+    const confirmed = window.confirm(
+      'Start over as a new user? This will clear your local profile, memory, and all first-run progress for this browser.'
+    )
+    if (!confirmed) return
+
+    await localStorageStore.clear(userId)
+    clearAppStage()
+    clearUserId()
+
+    // Reset in-memory state before reload so there's no flicker
+    setMessages([])
+    setMemory(createEmptyMemory('usr_server'))
+    setActiveCoach(null)
+    setError(null)
+    setStatus('idle')
+    _setAppStage('PRE_CONSENT')
+
+    window.location.reload()
   }, [userId])
 
   // ── Send a user message to /api/advice ───────────────────────────────────
@@ -232,6 +259,7 @@ export function useChatState(): ChatStateReturn {
     userId,
     memory,
     updateMemory,
+    resetUser,
     activeCoach,
     setActiveCoach,
   }
