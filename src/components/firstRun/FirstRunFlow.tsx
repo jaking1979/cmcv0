@@ -10,7 +10,7 @@
  *   PRE_CONSENT       → ConsentGate  (intro bubbles + consent button)
  *   POST_CONSENT_NAME → NameCapture  (preferred name input)
  *   FIRST_RUN_CHOICE  → ChoiceHub   (3 inline path cards)
- *   ONBOARDING        → OnboardingEntry (scaffold placeholder)
+ *   ONBOARDING        → redirects to /onboarding page via router.push
  *   TEAM_INTRO        → TeamIntro   (coaching symphony cards)
  *   COACH_LENS        → CoachLens   (single-coach detail + return)
  *   LIGHT_CHAT        → null        (normal chat takes over)
@@ -22,6 +22,7 @@
  */
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import type { AppStage } from '@/lib/appState'
 import type { CoachId } from '@/lib/coaches/definitions'
 import type { ChatMessage } from '@/components/chat/types'
@@ -44,6 +45,11 @@ function OnboardingEntry({
   preferredName: string | null
   onSkip: () => void
 }) {
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FirstRunFlow.tsx:OnboardingEntry:mount',message:'OnboardingEntry scaffold rendered — placeholder shown instead of /onboarding',data:{preferredName},hypothesisId:'H-A',timestamp:Date.now()})}).catch(()=>{});
+  }, [])
+  // #endregion
   const nameStr = preferredName ? `, ${preferredName}` : ''
   return (
     <div className="flex flex-col gap-3 px-4 pb-6 pt-4 max-w-lg mx-auto w-full">
@@ -140,6 +146,7 @@ export function FirstRunFlow({
   preConsentMessages,
   isBusy,
 }: FirstRunFlowProps) {
+  const router = useRouter()
   const scrollRef = React.useRef<HTMLDivElement | null>(null)
 
   // Scroll to bottom when stage changes
@@ -147,6 +154,17 @@ export function FirstRunFlow({
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [appStage])
+
+  // If localStorage still has ONBOARDING (e.g. from a previous session before the fix),
+  // redirect to the actual onboarding page immediately.
+  React.useEffect(() => {
+    if (appStage === 'ONBOARDING') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FirstRunFlow.tsx:ONBOARDING-redirect',message:'appStage ONBOARDING detected — redirecting to /onboarding',data:{appStage},hypothesisId:'H-D',runId:'post-fix',timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      router.push('/onboarding')
+    }
+  }, [appStage, router])
 
   // Stages that use the normal chat flow — render nothing here
   if (appStage === 'LIGHT_CHAT' || appStage === 'PERSONALIZED_CHAT') return null
@@ -175,12 +193,7 @@ export function FirstRunFlow({
         />
       )}
 
-      {appStage === 'ONBOARDING' && (
-        <OnboardingEntry
-          preferredName={memory.preferredName}
-          onSkip={onStartChat}
-        />
-      )}
+      {/* ONBOARDING stage redirects to /onboarding via useEffect above */}
 
       {appStage === 'TEAM_INTRO' && (
         <TeamIntro

@@ -17,6 +17,7 @@
  */
 
 import { useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { MessageList } from '@/components/chat/MessageList'
 import { MessageComposer } from '@/components/chat/MessageComposer'
 import BottomNav, { NavSpacer } from '@/components/BottomNav'
@@ -36,6 +37,7 @@ function katoGreeting(preferredName: string | null): string {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdvicePage() {
+  const router = useRouter()
   const {
     appStage, setAppStage,
     messages, addMessage, clearMessages,
@@ -79,17 +81,24 @@ export default function AdvicePage() {
   }, [updateMemory, setAppStage])
 
   const handleChoose = useCallback((choice: 'onboarding' | 'talk-now' | 'team-intro') => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advice/page.tsx:handleChoose',message:'handleChoose called',data:{choice},hypothesisId:'H-A-H-B',runId:'post-fix',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     updateMemory({ firstRunChoiceMade: choice })
     if (choice === 'talk-now') {
       enterLightChat()
     } else if (choice === 'team-intro') {
       updateMemory({ appStage: 'TEAM_INTRO' })
       setAppStage('TEAM_INTRO')
-      } else {
-      updateMemory({ appStage: 'ONBOARDING', onboardingStarted: true })
-      setAppStage('ONBOARDING')
+    } else {
+      // Navigate directly to the onboarding page (already built at /onboarding)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f1961c80-78b9-4cad-bc69-e41762315ff4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advice/page.tsx:handleChoose:onboarding-branch',message:'Navigating to /onboarding via router.push',data:{choice},hypothesisId:'H-B',runId:'post-fix',timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      updateMemory({ onboardingStarted: true })
+      router.push('/onboarding')
     }
-  }, [updateMemory, enterLightChat, setAppStage])
+  }, [updateMemory, enterLightChat, setAppStage, router])
 
   const handleViewCoach = useCallback((id: CoachId) => {
     setActiveCoach(id)
