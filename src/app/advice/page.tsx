@@ -46,14 +46,17 @@ export default function AdvicePage() {
   } = useChatState()
 
   // ── iOS PWA keyboard fix ───────────────────────────────────────────────
-  // On iOS PWA, the layout viewport (100dvh) does not shrink when the soft
-  // keyboard opens. Instead iOS scrolls the window, sending everything off-
-  // screen. We use visualViewport.height to clamp the root to the visible
-  // area, and lock the document so iOS cannot scroll it.
-  const { height: vpHeight, isKeyboardOpen } = useVisualViewport()
+  // Primary fix (CSS): the root div uses `position: fixed; inset: 0`.
+  // On iOS 15+ PWA, fixed elements anchor to the *visual* viewport — so when
+  // the keyboard opens the root's bottom edge rises with the keyboard, the
+  // flex column shrinks to fit, and the page never "shoots up".
+  //
+  // Secondary fix (JS): we also lock the document scroll so iOS cannot shift
+  // the layout, and we hide the bottom nav when an input is focused so the
+  // fixed nav bar doesn't overlay the composer.
+  const { isKeyboardOpen } = useVisualViewport()
 
-  // Prevent iOS from scrolling the document body (which would shift the root
-  // div off-screen when the keyboard opens).
+  // Prevent iOS from scrolling the document body when an input is focused.
   useEffect(() => {
     document.documentElement.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
@@ -162,9 +165,11 @@ export default function AdvicePage() {
     <div
       className="flex flex-col relative overflow-hidden"
       style={{
-        // Use visualViewport height so the layout shrinks to the visible area
-        // above the iOS soft keyboard. Falls back to 100dvh on desktop/SSR.
-        height: vpHeight != null ? `${vpHeight}px` : '100dvh',
+        // `position: fixed; inset: 0` anchors the layout to the visual viewport.
+        // On iOS 15+ PWA, this means the bottom edge automatically rises when
+        // the soft keyboard appears — no JS height tracking needed.
+        position: 'fixed',
+        inset: 0,
         background: 'var(--bg-primary)',
       }}
     >

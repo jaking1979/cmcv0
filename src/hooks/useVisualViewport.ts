@@ -1,58 +1,65 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 /**
- * Tracks the visual viewport height to handle iOS PWA soft-keyboard layout.
+ * Detects whether the iOS soft keyboard is open.
  *
- * Problem: On iOS PWA, when the soft keyboard opens, the layout viewport
- * (100dvh) does NOT shrink. Instead, iOS scrolls the document body upward to
- * keep the focused element visible — sending the entire chat UI off the top of
- * the screen. `visualViewport.height` correctly reports only the visible area
- * above the keyboard, so we use it to size the root container explicitly.
+ * Strategy: `focusin` / `focusout` events on textarea / input elements.
+ *
+ * Why not `visualViewport.resize`?
+ * On iOS PWA (home-screen apps), `visualViewport.resize` does not fire
+ * reliably when the soft keyboard opens — the event is simply never dispatched.
+ * Focus events are synchronous, always fired, and accurate enough for our
+ * single-composer UI.
+ *
+ * The primary layout fix (root div fills only the visible area above the
+ * keyboard) is handled via CSS `position: fixed; inset: 0` — no JS needed
+ * for that part. This hook's sole job is to hide the bottom nav so the
+ * keyboard doesn't overlap it.
  */
 export function useVisualViewport() {
-  const [height, setHeight] = useState<number | null>(null)
-  const initialHeightRef = useRef<number | null>(null)
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
 
   useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-
-    const update = () => {
-      const h = vv.height
-      // Capture baseline on first call (before keyboard ever opens)
-      if (initialHeightRef.current === null) {
-        initialHeightRef.current = h
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as Element
+      if (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT') {
+        setIsKeyboardOpen(true)
+        // #region agent log
+        console.log(
+          '[DEBUG useVisualViewport] KEYBOARD OPEN via focusin',
+          'tag=', t.tagName,
+          'vv.height=', window.visualViewport?.height,
+          'window.innerHeight=', window.innerHeight,
+        )
+        // #endregion
       }
-      setHeight(h)
-
-      // #region agent log
-      console.log(
-        '[DEBUG useVisualViewport] vv.height=', h,
-        'baseline=', initialHeightRef.current,
-        'diff=', initialHeightRef.current != null ? Math.round(initialHeightRef.current - h) : 0,
-        'window.innerHeight=', window.innerHeight,
-        'window.scrollY=', Math.round(window.scrollY),
-      )
-      // #endregion
     }
 
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
-    update()
+    const onFocusOut = (e: FocusEvent) => {
+      const t = e.target as Element
+      if (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT') {
+        // Slight delay avoids a flicker if focus moves between inputs
+        setTimeout(() => setIsKeyboardOpen(false), 150)
+        // #region agent log
+        console.log(
+          '[DEBUG useVisualViewport] KEYBOARD CLOSE via focusout',
+          'tag=', t.tagName,
+          'vv.height=', window.visualViewport?.height,
+          'window.innerHeight=', window.innerHeight,
+        )
+        // #endregion
+      }
+    }
 
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
     return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
     }
   }, [])
 
-  // Keyboard is considered open when height has shrunk >100px from baseline
-  const isKeyboardOpen =
-    initialHeightRef.current !== null &&
-    height !== null &&
-    height < initialHeightRef.current - 100
-
-  return { height, isKeyboardOpen }
+  return { isKeyboardOpen }
 }
