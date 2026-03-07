@@ -16,12 +16,13 @@
  * - roleplay state
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { MessageList } from '@/components/chat/MessageList'
 import { MessageComposer } from '@/components/chat/MessageComposer'
 import BottomNav, { NavSpacer } from '@/components/BottomNav'
 import { FirstRunFlow } from '@/components/firstRun/FirstRunFlow'
 import { useChatState } from '@/hooks/useChatState'
+import { useVisualViewport } from '@/hooks/useVisualViewport'
 import type { CoachId } from '@/lib/coaches/definitions'
 import type { ChatMessage } from '@/components/chat/types'
 
@@ -43,6 +44,32 @@ export default function AdvicePage() {
     memory, updateMemory, resetUser,
     activeCoach, setActiveCoach,
   } = useChatState()
+
+  // ── iOS PWA keyboard fix ───────────────────────────────────────────────
+  // On iOS PWA, the layout viewport (100dvh) does not shrink when the soft
+  // keyboard opens. Instead iOS scrolls the window, sending everything off-
+  // screen. We use visualViewport.height to clamp the root to the visible
+  // area, and lock the document so iOS cannot scroll it.
+  const { height: vpHeight, isKeyboardOpen } = useVisualViewport()
+
+  // Prevent iOS from scrolling the document body (which would shift the root
+  // div off-screen when the keyboard opens).
+  useEffect(() => {
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }, [])
+
+  // Scroll messages to bottom whenever keyboard opens so latest message is visible.
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (isKeyboardOpen && messagesScrollRef.current) {
+      messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight
+    }
+  }, [isKeyboardOpen])
 
   // ONBOARDING uses the inline chat UI (not the FirstRunFlow overlay), so it's excluded from isFirstRun.
   const isFirstRun = appStage !== 'LIGHT_CHAT' && appStage !== 'PERSONALIZED_CHAT' && appStage !== 'ONBOARDING'
@@ -133,8 +160,13 @@ export default function AdvicePage() {
 
   return (
     <div
-      className="h-dvh flex flex-col relative overflow-hidden"
-      style={{ background: 'var(--bg-primary)' }}
+      className="flex flex-col relative overflow-hidden"
+      style={{
+        // Use visualViewport height so the layout shrinks to the visible area
+        // above the iOS soft keyboard. Falls back to 100dvh on desktop/SSR.
+        height: vpHeight != null ? `${vpHeight}px` : '100dvh',
+        background: 'var(--bg-primary)',
+      }}
     >
       {/* ── Gradient wash ──────────────────────────────────────────────── */}
       <div
@@ -220,7 +252,7 @@ export default function AdvicePage() {
           />
         ) : (
           /* Normal chat UI */
-          <div className="absolute inset-0 overflow-y-auto chat-messages px-4 pb-4 pt-2">
+          <div ref={messagesScrollRef} className="absolute inset-0 overflow-y-auto chat-messages px-4 pb-4 pt-2">
             <div className="max-w-lg mx-auto">
               <MessageList messages={messages} />
         </div>
@@ -307,8 +339,9 @@ export default function AdvicePage() {
         </div>
       </div>
 
-      <NavSpacer />
-      <BottomNav />
+      {/* Hide the nav bar when the keyboard is open to maximise visible message space */}
+      {!isKeyboardOpen && <NavSpacer />}
+      {!isKeyboardOpen && <BottomNav />}
     </div>
   )
 }
