@@ -145,7 +145,6 @@ export function FirstRunFlow({
   preConsentMessages,
   isBusy,
 }: FirstRunFlowProps) {
-  const router = useRouter()
   const scrollRef = React.useRef<HTMLDivElement | null>(null)
 
   // Scroll to bottom when stage changes
