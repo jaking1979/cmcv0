@@ -134,7 +134,7 @@ export function CoachLens({ coachId, onBack, onStartWithCoach, onStartWithKato }
           className="w-full py-3.5 rounded-2xl text-sm font-semibold text-white"
           style={{ background: KATO_ACCENT }}
         >
-          {isKato ? 'Start chatting with Kato →' : 'Start with Kato (default)'}
+          {isKato ? "I'm ready — let's get started →" : 'Back to my options'}
         </button>
       </div>
 

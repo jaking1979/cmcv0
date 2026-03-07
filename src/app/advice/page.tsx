@@ -85,7 +85,7 @@ export default function AdvicePage() {
     } else if (choice === 'team-intro') {
       updateMemory({ appStage: 'TEAM_INTRO' })
       setAppStage('TEAM_INTRO')
-    } else {
+      } else {
       updateMemory({ appStage: 'ONBOARDING', onboardingStarted: true })
       setAppStage('ONBOARDING')
     }
@@ -103,6 +103,12 @@ export default function AdvicePage() {
   const handleStartChat = useCallback(() => {
     enterLightChat()
   }, [enterLightChat])
+
+  // From TeamIntro / CoachLens "Start with Kato": return to choice hub
+  // so the user still sees the onboarding option before entering chat.
+  const handleReturnToChoices = useCallback(() => {
+    setAppStage('FIRST_RUN_CHOICE')
+  }, [setAppStage])
 
   const handleStartWithCoach = useCallback((id: CoachId) => {
     enterLightChat(id)
@@ -145,7 +151,7 @@ export default function AdvicePage() {
               }}
             >
               K
-            </div>
+          </div>
             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Kato
             </span>
@@ -157,7 +163,7 @@ export default function AdvicePage() {
           </div>
 
           {hasMessages && (
-            <button
+                <button
               type="button"
               onClick={() => clearMessages()}
               className="flex items-center justify-center w-9 h-9 rounded-full"
@@ -178,7 +184,7 @@ export default function AdvicePage() {
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
               </svg>
-            </button>
+                </button>
           )}
         </header>
       )}
@@ -196,6 +202,7 @@ export default function AdvicePage() {
             onChoose={handleChoose}
             onViewCoach={handleViewCoach}
             onBackToTeam={handleBackToTeam}
+            onReturnToChoices={handleReturnToChoices}
             onStartChat={handleStartChat}
             onStartWithCoach={handleStartWithCoach}
             preConsentMessages={messages}
@@ -206,7 +213,7 @@ export default function AdvicePage() {
           <div className="absolute inset-0 overflow-y-auto chat-messages px-4 pb-4 pt-2">
             <div className="max-w-lg mx-auto">
               <MessageList messages={messages} />
-            </div>
+        </div>
           </div>
         )}
       </div>
@@ -231,13 +238,13 @@ export default function AdvicePage() {
             >
               {error}
             </p>
-            <button
+              <button
               onClick={clearError}
               className="text-xs shrink-0"
-              style={{ color: '#991B1B' }}
-            >
+                style={{ color: '#991B1B' }}
+              >
               ✕
-            </button>
+              </button>
           </div>
         )}
 

@@ -112,6 +112,9 @@ export interface FirstRunFlowProps {
   onChoose: (choice: 'onboarding' | 'talk-now' | 'team-intro') => void
   onViewCoach: (id: CoachId) => void
   onBackToTeam: () => void
+  /** Return to the FIRST_RUN_CHOICE hub (from TeamIntro or CoachLens "Start with Kato") */
+  onReturnToChoices: () => void
+  /** Enter LIGHT_CHAT directly — used when the user picks a specific coach lens */
   onStartChat: () => void
   onStartWithCoach: (id: CoachId) => void
 
@@ -131,6 +134,7 @@ export function FirstRunFlow({
   onChoose,
   onViewCoach,
   onBackToTeam,
+  onReturnToChoices,
   onStartChat,
   onStartWithCoach,
   preConsentMessages,
@@ -181,7 +185,7 @@ export function FirstRunFlow({
       {appStage === 'TEAM_INTRO' && (
         <TeamIntro
           onViewCoach={onViewCoach}
-          onStartChat={onStartChat}
+          onStartChat={onReturnToChoices}
         />
       )}
 
@@ -190,7 +194,7 @@ export function FirstRunFlow({
           coachId={activeCoach}
           onBack={onBackToTeam}
           onStartWithCoach={onStartWithCoach}
-          onStartWithKato={onStartChat}
+          onStartWithKato={onReturnToChoices}
         />
       )}
     </div>

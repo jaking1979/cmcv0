@@ -127,7 +127,7 @@ export function TeamIntro({ onViewCoach, onStartChat }: TeamIntroProps) {
         ))}
       </div>
 
-      {/* Start chatting CTA */}
+      {/* Continue CTA — returns to choice hub so onboarding option is still available */}
       <div className="mt-2 slide-up" style={{ animationDelay: '480ms' }}>
         <button
           onClick={onStartChat}
@@ -137,7 +137,7 @@ export function TeamIntro({ onViewCoach, onStartChat }: TeamIntroProps) {
             boxShadow: '0 4px 16px rgba(63,168,156,0.3)',
           }}
         >
-          Start chatting with Kato →
+          I'm ready — let's get started →
         </button>
       </div>
     </div>
