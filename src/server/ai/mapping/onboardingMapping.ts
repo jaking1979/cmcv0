@@ -693,8 +693,9 @@ export function validateFormulation(formulation: OnboardingFormulation): boolean
   )
 }
 
-// ── Backward-compat shim ──────────────────────────────────────────────────────
-// Keep the old export name available so any existing callers don't break
-// while the codebase migrates to mapTranscriptToFormulation.
+// ── Backward-compat shims ─────────────────────────────────────────────────────
+// Keep old export names available so existing callers don't break
+// while the codebase migrates to the new names.
 
 export { mapTranscriptToFormulation as mapTranscriptToProfile }
+export { validateFormulation as validateProfile }
