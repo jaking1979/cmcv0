@@ -337,7 +337,7 @@ function wantsSkills(text: string) {
 }
 function userAskedForSummary(s: string) {
   const t = (s || '').toLowerCase()
-  return /\b(summary|report|intake\s+summary|write\s+it\s+up|can\s+you\s+summarize)\b/.test(t)
+  return /\b(summary|report|intake\s+summary|write\s+it\s+up|can\s+you\s+summarize|fuller\s+version|full\s+version|write\s+it|write\s+that\s+up|write\s+the\s+full|full\s+writeup|please\s+write)\b/.test(t)
 }
 function userConsentedYes(s: string) {
   const t = (s || '').toLowerCase()
@@ -349,13 +349,28 @@ function hasOfferedSummaryRecently(history: Msg[], withinTurns = 8) {
 }
 function hasRecentlySummarized(history: Msg[], withinTurns = 14) {
   const last = history.slice(-withinTurns)
-  return last.some(m => m.role === 'assistant' && (m.content || '').includes(DONE_MARK))
+  return last.some(m =>
+    m.role === 'assistant' &&
+    ((m.content || '').includes(DONE_MARK) || // backward compat
+     ((m.content || '').length > 150 &&
+      (m.content || '').toLowerCase().includes("we'll fill in more as we keep talking")))
+  )
 }
 function lastTurnWasOfferAndUserSaidYes(history: Msg[]) {
   if (history.length < 2) return false
   const a = history[history.length - 2]
   const u = history[history.length - 1]
-  return a.role === 'assistant' && (a.content || '').includes(OFFER_MARK) && userConsentedYes(u.content || '')
+  if (a.role !== 'assistant') return false
+  const assistantText = (a.content || '').toLowerCase()
+  // Detect the canonical offer phrase the model is instructed to produce at the
+  // end of the spoken summary — OFFER_MARK is stripped before reaching history,
+  // so we match on text content instead.
+  const offeredWrittenSummary =
+    assistantText.includes('write up a fuller version') ||
+    assistantText.includes('fuller written summary') ||
+    assistantText.includes('write it up') ||
+    assistantText.includes(OFFER_MARK) // backward compat
+  return offeredWrittenSummary && userConsentedYes(u.content || '')
 }
 
 /* When user asks for skills too early, return exactly one targeted intake question */
@@ -435,9 +450,9 @@ Example stems: "What, if anything, has felt harder because of your drinking?" or
 Sit with ambivalence. Do not reassure or suggest. Do not ask what would help.`,
 
   4: `CURRENT ONBOARDING FOCUS: Motivation and Goals
-Goal: Understand what they want and what a good outcome looks like in their own words.
-Example stems: "What are you hoping things look like when this goes well?" or "What would feel different in your day-to-day life if things improved?"
-Do not push toward change or a specific goal type. Accept "I don't know" and note it.`,
+Goal: Understand what they want and what a good outcome looks like — even if it's vague or undecided.
+Example stems: "What are you hoping for, even if it's not totally clear yet?" or "If things went better, what would be the first sign of that?"
+Do not push toward a specific goal type. If they named a goal already, do NOT ask about goals again — move to the next domain.`,
 
   5: `CURRENT ONBOARDING FOCUS: Identity and Meaning
 Goal: Explore who they are, what this means to their sense of self, who they want to be.
@@ -473,13 +488,36 @@ VAGUE LOOP DETECTED: The user has given uncertain or deflecting answers more tha
 Do NOT repeat the same question in different words. Do NOT ask "what might help" or "what could change".`
 
 /**
+ * Extract the last 2–3 question sentences from recent assistant turns.
+ * Used to inject a concrete "do not rephrase these" anti-repetition warning
+ * into the domain hint — a structural guard that doesn't rely on the model
+ * honoring a general instruction about repetition.
+ */
+function buildRecentQuestionsWarning(history: Msg[]): string {
+  const questions = history
+    .filter(m => m.role === 'assistant')
+    .slice(-4)
+    .flatMap(m =>
+      (m.content || '')
+        .split(/(?<=[.!?])\s+/)
+        .filter(s => s.trim().endsWith('?'))
+        .map(s => s.trim())
+    )
+    .slice(-3)
+  if (questions.length === 0) return ''
+  return `\nANTI-REPETITION: Do NOT ask a question with similar phrasing or covering the same angle as these recent questions:\n${questions.map(q => `- ${q}`).join('\n')}\nIf this domain already has enough signal from what was said, do not ask again — move to the next domain or offer a reflection-only bridge.`
+}
+
+/**
  * Build a short, directive system message telling the model which domain
  * is currently in focus and what a useful next question looks like.
  * Injected as a system message immediately before the user's latest input.
  */
-function buildDomainHint(segment: number, vagueCount: number): string {
+function buildDomainHint(segment: number, vagueCount: number, history: Msg[]): string {
   const base = DOMAIN_HINTS[Math.min(segment, 9)] ?? DOMAIN_HINTS[9]
-  return vagueCount >= 2 ? base + VAGUE_LOOP_ADDITION : base
+  const repetitionWarning = buildRecentQuestionsWarning(history)
+  const vagueAddition = vagueCount >= 2 ? VAGUE_LOOP_ADDITION : ''
+  return (base + repetitionWarning + vagueAddition).trim()
 }
 
 /* Fallback if OpenAI ever returns empty */
@@ -656,7 +694,7 @@ export async function POST(req: NextRequest) {
 
     // Regular onboarding turn — inject per-turn domain focus hint before user message
     const vagueCount = countRecentVague(prior, input)
-    const domainHint = buildDomainHint(currentSegment, vagueCount)
+    const domainHint = buildDomainHint(currentSegment, vagueCount, prior)
     const convo: Msg[] = [
       ...base,
       ...prior,
