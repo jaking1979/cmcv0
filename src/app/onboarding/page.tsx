@@ -19,6 +19,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null)
   const [isV1Enabled, setIsV1Enabled] = useState(true)
   const [showDisclaimer, setShowDisclaimer] = useState(false)
+  const [onboardingSegment, setOnboardingSegment] = useState<number>(0)
 
   useEffect(() => {
     document.title = 'Onboarding — CMC Sober Coach'
@@ -51,6 +52,8 @@ export default function OnboardingPage() {
         body: JSON.stringify(body),
         signal: controller.signal,
       })
+      const seg = res.headers.get('X-Onboarding-Segment')
+      if (seg !== null) setOnboardingSegment(parseInt(seg, 10))
       const text = await res.text().catch(() => '')
       const content = (text && text.trim()) || 'Thanks for sharing — could you say a bit more so I can tailor this to you?'
       if (!simulateTyping) {
@@ -149,6 +152,14 @@ export default function OnboardingPage() {
     }
   }
 
+  function getProgressLabel(segment: number): string {
+    if (segment <= 1) return 'About 8–10 questions left'
+    if (segment <= 3) return 'About 5–7 questions left'
+    if (segment <= 5) return 'About 3–5 questions left'
+    if (segment <= 7) return 'About 2–3 questions left'
+    return 'Almost done'
+  }
+
   return (
     <div
       className="h-dvh flex flex-col"
@@ -194,6 +205,11 @@ export default function OnboardingPage() {
         className="flex-shrink-0 px-4 pb-3 max-w-lg mx-auto w-full"
         style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
       >
+        {messages.length > 1 && onboardingSegment < 9 && (
+          <p className="text-xs text-center py-1" style={{ color: 'var(--text-tertiary)' }}>
+            {getProgressLabel(onboardingSegment)}
+          </p>
+        )}
         <div className="flex items-center justify-end gap-2 py-2">
           <button
             type="button"

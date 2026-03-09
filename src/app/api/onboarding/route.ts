@@ -62,6 +62,16 @@ Maximum 200 words total. No markdown. No headers. Plain paragraphs separated by 
 const OFFER_MARK = '<!--OFFER_SUMMARY-->'
 const DONE_MARK  = '<!--SUMMARY_DONE-->'
 
+// Minimal system context for finalize-only calls.
+// Does NOT include SYSTEM_PROMPT_V1 / ONBOARDING_V1_PROMPT — those contain
+// "Responses ≤160 words" and conversational guardrails that override
+// FINALIZE_PROMPT and cause the model to produce another spoken-summary-length
+// response instead of the distinct fuller written writeup.
+const FINALIZE_BASE: Msg[] = [{
+  role: 'system',
+  content: 'You are Kato, an Invitation to Change AI coach. Write the intake summary exactly as instructed. Do not ask questions. Do not hold back on length. Follow the formatting rules in the next instruction.',
+}]
+
 // Helper to strip HTML comments from user-visible text
 function stripHtmlComments(text: string): string {
   return text
@@ -345,16 +355,24 @@ function userConsentedYes(s: string) {
 }
 function hasOfferedSummaryRecently(history: Msg[], withinTurns = 8) {
   const last = history.slice(-withinTurns)
-  return last.some(m => m.role === 'assistant' && (m.content || '').includes(OFFER_MARK))
+  return last.some(m =>
+    m.role === 'assistant' &&
+    ((m.content || '').includes(OFFER_MARK) || // backward compat
+     (m.content || '').toLowerCase().includes('write up a fuller version') ||
+     (m.content || '').toLowerCase().includes('would you like me to write'))
+  )
 }
 function hasRecentlySummarized(history: Msg[], withinTurns = 14) {
   const last = history.slice(-withinTurns)
-  return last.some(m =>
-    m.role === 'assistant' &&
-    ((m.content || '').includes(DONE_MARK) || // backward compat
-     ((m.content || '').length > 150 &&
-      (m.content || '').toLowerCase().includes("we'll fill in more as we keep talking")))
-  )
+  return last.some(m => {
+    if (m.role !== 'assistant') return false
+    const c = (m.content || '').toLowerCase()
+    return (
+      c.includes(DONE_MARK) ||                                        // backward compat
+      c.includes("we'll fill in more as we keep talking") ||          // FINALIZE_PROMPT phrase
+      c.includes("i'll get a better picture as we keep talking")      // SPOKEN_SUMMARY_PROMPT phrase
+    )
+  })
 }
 function lastTurnWasOfferAndUserSaidYes(history: Msg[]) {
   if (history.length < 2) return false
@@ -607,14 +625,14 @@ export async function POST(req: NextRequest) {
     // If last turn was a summary offer and user said yes now, produce the summary.
     if (lastTurnWasOfferAndUserSaidYes(transcriptWithCurrent) || userAskedForSummary(input || '')) {
       const messages: Msg[] = [
-        ...base,
+        ...FINALIZE_BASE,
         { role: 'system', content: FINALIZE_PROMPT },
         {
           role: 'user',
           content: `Here is the full transcript as JSON array of {role,content}. Write the intake summary report now:\n\n${JSON.stringify(transcriptWithCurrent)}`
         }
       ]
-      const summary = await callOpenAI(messages, 1500)
+      const summary = await callOpenAI(messages, 800)
       const cleanSummary = stripHtmlComments(summary || '')
       return new Response(cleanSummary.trim(), {
         headers: {
@@ -630,14 +648,14 @@ export async function POST(req: NextRequest) {
     if (finalize || wantsFinish(input)) {
       const transcript = prior.concat({ role: 'user', content: input || '' })
       const messages: Msg[] = [
-        ...base,
+        ...FINALIZE_BASE,
         { role: 'system', content: FINALIZE_PROMPT },
         {
           role: 'user',
           content: `Here is the full transcript as JSON array of {role,content}. Write the intake summary report now:\n\n${JSON.stringify(transcript)}`,
         },
       ]
-      const finText = await callOpenAI(messages, 1500)
+      const finText = await callOpenAI(messages, 800)
       const cleanFinText = stripHtmlComments(finText || '')
       return new Response(cleanFinText.trim(), {
         headers: {
