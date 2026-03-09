@@ -439,10 +439,7 @@ function shouldOfferSummaryNow(history: Msg[], latest: string) {
   return hasMinimumRequiredCoverage(history, latest) && userTurns >= 7 && segment >= 9
 }
 
-function wantsFinish(text: string) {
-  const t = (text || '').toLowerCase()
-  return /\b(finish|wrap up|finalize|show (my )?(summary|report)|end onboarding|done)\b/.test(t)
-}
+
 function wantsSkills(text: string) {
   const t = (text || '').toLowerCase().replace(/[—–]/g, '-')
   return /\b(what\s+(should|can|could)\s+i\s+do|give\s+me\s+(something|options?)\s*(to\s+do)?|skills?|tool|strategy|help me|please help|advice)\b/.test(t)
@@ -818,8 +815,11 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Explicit "finish" or finalize flag -> produce the summary now.
-    if (finalize || wantsFinish(input)) {
+    // Explicit finalize flag (button) -> produce the written summary now, bypassing coverage gate.
+    // Keyword detection (wantsFinish) is intentionally NOT included here — when a user says
+    // something like "wrap up" mid-conversation, the AI should check intent first rather than
+    // immediately producing a summary. The spoken → written flow handles that naturally.
+    if (finalize) {
       const transcript = prior.concat({ role: 'user', content: input || '' })
       const messages: Msg[] = [
         ...FINALIZE_BASE,
@@ -860,7 +860,6 @@ export async function POST(req: NextRequest) {
     const readyToOffer = shouldOfferSummaryNow(prior, input)
     if (
       readyToOffer &&
-      !wantsFinish(input) &&
       !hasOfferedSummaryRecently(prior) &&
       !hasRecentlySummarized(prior)
     ) {
