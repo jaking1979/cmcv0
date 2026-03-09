@@ -125,6 +125,66 @@ function mentionsSafetyTopics(text: string) {
   const t = (text || '').toLowerCase()
   return /(safe|safety|overdose|overdosed|withdrawal|blackout|blacked out|using alone|alone when (i use|using)|mixing|suicid|harm yourself|physically unsafe|medical emergency|domestic|violence)/.test(t)
 }
+function mentionsEmotionalDrivers(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(anxiet|depress|mood|mental health|panic|sad|overwhelm|numb|empty|disconnected|trauma|ptsd|worthless|shame|guilt|angry|rage|lonely|isolat|grief|stress|burnout|can't (sleep|function|cope)|low energy|exhausted|hopeless)/.test(t)
+}
+function mentionsValues(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(matter(s)? to me|important to me|care about|believe in|kind of person|my kids|my family|my health|my career|my relationship|what i want|legacy|proud of|not who i am|who i want to be|i value|my values|what matters)/.test(t)
+}
+
+/* -------- recent non-acute overdose detection -------- */
+
+/**
+ * Returns true when the user is describing a past/recent overdose that is not
+ * an active medical emergency. These cases should NOT get the generic 911 exit
+ * response — they need the post-overdose conversational assessment branch.
+ */
+function isRecentNonAcuteOverdose(text: string): boolean {
+  const t = (text || '').toLowerCase()
+  return /(overdosed (last|a few|recently|this (week|month|year))|had an? (od|overdose)|experienced an? (od|overdose)|was in the (er|hospital|emergency room)|went to the (er|hospital|emergency)|narcan was used|they (used|gave me) (narcan|naloxone)|i (used|took) (too much|fentanyl|heroin|pills|opioids?) (last|a few|recently)|nar-?can (saved|helped|was there))/.test(t)
+}
+
+/**
+ * Returns true if any recent assistant or user message indicates the post-overdose
+ * assessment branch is already active (so it persists across turns).
+ */
+function isInPostOverdoseBranch(history: Msg[]): boolean {
+  return history.slice(-10).some(m => {
+    if (m.role !== 'assistant') return false
+    const c = (m.content || '').toLowerCase()
+    return (
+      c.includes('narcan') ||
+      c.includes('naloxone') ||
+      c.includes('glad you\'re still here') ||
+      c.includes('post-overdose') ||
+      c.includes('since the overdose') ||
+      c.includes('after the od')
+    )
+  })
+}
+
+/* -------- post-overdose assessment prompt -------- */
+const POST_OVERDOSE_BRANCH_PROMPT = `
+POST-OVERDOSE ASSESSMENT — a recent overdose was disclosed. Pause the regular onboarding flow.
+
+Your priorities for the next several turns, in order:
+1. Immediate physical safety: Are they feeling okay physically right now? Any lingering effects?
+2. Current use: Have they used since the overdose? What does use look like right now?
+3. Overdose context: What happened — substance involved, alone or with others?
+4. Naloxone access: Do they have Narcan at home now? Do people around them know how to use it?
+5. Alone vs. with others: Do they tend to use alone, or is someone usually around?
+6. Treatment/medication linkage: Are they connected to a doctor, program, or medication like Suboxone or methadone?
+7. Near-future risk: Any upcoming high-risk situations in the next few days?
+
+STYLE RULES for this branch:
+- Warm and direct, not clinical. One question per turn.
+- Do not use the word "assessment" or "screening" aloud.
+- Do not dramatize. Do not extract promises.
+- After gathering the 7 areas above, bridge naturally back into the regular onboarding domains.
+- Offer SAMHSA (1-800-662-4357) as a resource for treatment connection if relevant.
+`.trim()
 
 /* -------- safety screen -------- */
 
@@ -324,17 +384,40 @@ function coverageScore(history: Msg[], latest: string) {
   if (mentionsFunction(userText)) score++
   if (mentionsStrengths(userText)) score++
   if (mentionsReadiness(userText)) score++
-  return score // 0..8
+  if (mentionsEmotionalDrivers(userText)) score++
+  if (mentionsValues(userText)) score++
+  return score // 0..10
+}
+
+/**
+ * Returns true when the minimum required domains for a complete onboarding
+ * formulation all have at least some signal. Used instead of a raw score
+ * threshold to ensure no specific domain is skipped.
+ */
+function hasMinimumRequiredCoverage(history: Msg[], latest: string): boolean {
+  const userText = history
+    .filter(m => m.role === 'user')
+    .map(m => (m.content || '').toLowerCase())
+    .concat((latest || '').toLowerCase())
+    .join('\n')
+
+  return (
+    mentionsFrequency(userText) &&                   // behavior pattern
+    mentionsTriggers(userText) &&                    // triggers/high-risk
+    mentionsFunction(userText) &&                    // function
+    mentionsConsequences(userText) &&                // costs
+    hasGoal(userText) &&                             // goal
+    (mentionsEmotionalDrivers(userText) ||           // emotional drivers OR supports
+     mentionsSupports(userText))
+  )
 }
 
 function shouldOfferSummaryNow(history: Msg[], latest: string) {
   const userTurns = history.filter(m => m.role === 'user').length
-  if (userTurns < 12) return false
-  const score = coverageScore(history, latest)
+  if (userTurns < 7) return false
   const segment = deriveCurrentSegment(history, latest)
-  // Require meaningful coverage AND segment 9 (wrap-up domain) AND minimum turn count.
-  // Segment 9 is reached only after communication style and safety are addressed.
-  return score >= 5 && userTurns >= 12 && segment >= 9
+  // Require all 6 minimum required domains AND segment 9 (wrap-up domain) AND minimum turn count.
+  return hasMinimumRequiredCoverage(history, latest) && userTurns >= 7 && segment >= 9
 }
 
 function wantsFinish(text: string) {
@@ -368,9 +451,18 @@ function hasRecentlySummarized(history: Msg[], withinTurns = 14) {
     if (m.role !== 'assistant') return false
     const c = (m.content || '').toLowerCase()
     return (
-      c.includes(DONE_MARK) ||                                        // backward compat
-      c.includes("we'll fill in more as we keep talking") ||          // FINALIZE_PROMPT phrase
-      c.includes("i'll get a better picture as we keep talking")      // SPOKEN_SUMMARY_PROMPT phrase
+      c.includes(DONE_MARK) ||                                          // backward compat
+      c.includes("we'll fill in more as we keep talking") ||            // FINALIZE_PROMPT phrase
+      c.includes("i'll get a better picture as we keep talking") ||     // SPOKEN_SUMMARY_PROMPT phrase
+      c.includes("here's what i'm hearing") ||                          // model-generated spoken summary
+      c.includes("here's a brief summary") ||
+      c.includes("here's what i've heard") ||
+      c.includes("here's a summary") ||
+      c.includes("if you have any other thoughts") ||                   // model wrap-up language
+      c.includes("i'm here to support you in whatever") ||
+      c.includes("as we move forward") ||
+      c.includes("i'll keep in mind your preference") ||
+      c.includes("does that capture what you wanted to share")          // post-summary confirmation
     )
   })
 }
@@ -387,6 +479,8 @@ function lastTurnWasOfferAndUserSaidYes(history: Msg[]) {
     assistantText.includes('write up a fuller version') ||
     assistantText.includes('fuller written summary') ||
     assistantText.includes('write it up') ||
+    assistantText.includes('draft a brief summary') ||
+    assistantText.includes('starting to get a real picture') ||
     assistantText.includes(OFFER_MARK) // backward compat
   return offeredWrittenSummary && userConsentedYes(u.content || '')
 }
@@ -589,23 +683,61 @@ async function callOpenAI(messages: Msg[], max_tokens = 650, temperature = 0.7) 
 
 export async function POST(req: NextRequest) {
   try {
-    const { input, history = [], finalize = false, segment: clientSegment } = await req.json() as {
+    const {
+      input,
+      history = [],
+      finalize = false,
+      segment: clientSegment,
+      closePhase,
+    } = await req.json() as {
       input: string
       history?: Msg[]
       finalize?: boolean
       segment?: number   // 0-9; client may pass current segment, server derives if absent
+      closePhase?: { spokenDone: boolean; writtenDone: boolean }
     }
 
-    // Safety screen — expanded beyond simple crisis check
-    const safety = safetyScreen(input)
-    if (safety.triggered) {
-      return new Response(safety.response ?? '', {
+    // Hard gate: if the written summary has already been delivered, never re-enter
+    // summary or wrap-up mode regardless of what the model might generate.
+    if (closePhase?.writtenDone) {
+      const base: Msg[] = [{ role: 'system', content: SYSTEM_PROMPT_V1 }]
+      const prior = (history || []).filter(m => m.role === 'user' || m.role === 'assistant')
+      const convo = [
+        ...base,
+        ...prior,
+        {
+          role: 'system' as const,
+          content: 'CLOSE PHASE COMPLETE. The intake summary has already been delivered. Do NOT summarize again, do NOT say "as we wrap up," do NOT offer to write anything up. Acknowledge briefly and ask how they want to begin coaching.',
+        },
+        { role: 'user' as const, content: input || '' },
+      ]
+      const text = await callOpenAI(convo, 300, 0.4)
+      return new Response(stripHtmlComments(text), {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Cache-Control': 'no-store',
-          'X-Safety-Type': safety.type ?? 'unknown',
+          'X-Onboarding-Segment': '9',
         },
       })
+    }
+
+    // Safety screen — expanded beyond simple crisis check.
+    // Overdose patterns are split: acute → static exit; recent non-acute → assessment branch.
+    const safety = safetyScreen(input)
+    if (safety.triggered) {
+      // For overdose type, check if it is actually a recent non-acute disclosure
+      // before returning the static exit response.
+      if (safety.type === 'overdose' && isRecentNonAcuteOverdose(input)) {
+        // Fall through to the post-overdose branch below — do not return here.
+      } else {
+        return new Response(safety.response ?? '', {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Safety-Type': safety.type ?? 'unknown',
+          },
+        })
+      }
     }
 
     // Choose system prompt based on feature flags
@@ -706,6 +838,27 @@ export async function POST(req: NextRequest) {
           'Cache-Control': 'no-store',
           'X-Onboarding-Segment': String(nextSegment),
           'X-Spoken-Summary': '1',
+        },
+      })
+    }
+
+    // Post-overdose branch: inject specialized assessment prompt if recent non-acute
+    // overdose was disclosed in the current input OR is already active in the history.
+    const inOverdoseBranch = isRecentNonAcuteOverdose(input) || isInPostOverdoseBranch(prior)
+    if (inOverdoseBranch) {
+      const overdoseConvo: Msg[] = [
+        ...base,
+        ...prior,
+        { role: 'system', content: POST_OVERDOSE_BRANCH_PROMPT },
+        { role: 'user', content: input || '' },
+      ]
+      const overdoseText = await callOpenAI(overdoseConvo, 500, 0.4)
+      return new Response(stripHtmlComments(overdoseText || buildFallback(input)), {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Onboarding-Segment': String(currentSegment),
+          'X-Safety-Type': 'post_overdose_branch',
         },
       })
     }

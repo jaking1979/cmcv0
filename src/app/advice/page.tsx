@@ -16,7 +16,7 @@
  * - roleplay state
  */
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { MessageList } from '@/components/chat/MessageList'
 import { MessageComposer } from '@/components/chat/MessageComposer'
 import BottomNav, { NavSpacer } from '@/components/BottomNav'
@@ -26,12 +26,20 @@ import { useVisualViewport } from '@/hooks/useVisualViewport'
 import type { CoachId } from '@/lib/coaches/definitions'
 import type { ChatMessage } from '@/components/chat/types'
 
-// ── Helper ────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function katoGreeting(preferredName: string | null): string {
   return preferredName
     ? `Hey ${preferredName} — what would you like to work on today?`
     : "What would you like to work on today? I'm here and ready."
+}
+
+function getOnboardingProgressLabel(segment: number): string {
+  if (segment <= 1) return 'About 8–10 questions left'
+  if (segment <= 3) return 'About 5–7 questions left'
+  if (segment <= 5) return 'About 3–5 questions left'
+  if (segment <= 7) return 'About 2–3 questions left'
+  return 'Almost done'
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -44,7 +52,10 @@ export default function AdvicePage() {
     lastCompletedMessageId,
     memory, updateMemory, resetUser,
     activeCoach, setActiveCoach,
+    onboardingSegment,
   } = useChatState()
+
+  const [finalizing, setFinalizing] = useState(false)
 
   // ── iOS PWA keyboard fix ───────────────────────────────────────────────
   // Primary fix (CSS): the root div uses `position: fixed; inset: 0`.
@@ -155,6 +166,37 @@ export default function AdvicePage() {
     enterLightChat(id)
   }, [enterLightChat])
 
+  // ── Onboarding finalize ────────────────────────────────────────────────
+  // Generates the written intake summary then transitions to coaching.
+  const handleFinalize = useCallback(async () => {
+    if (finalizing || messages.length === 0) return
+    setFinalizing(true)
+    const historyForApi = messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    try {
+      const res = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'finish', history: historyForApi, finalize: true }),
+      })
+      const text = await res.text().catch(() => '')
+      const summaryMsg: ChatMessage = {
+        id: `kato_summary_${Date.now()}`,
+        role: 'assistant',
+        content: text.trim() || 'Here is a brief summary of what we covered.',
+        createdAt: Date.now(),
+      }
+      addMessage(summaryMsg)
+      updateMemory({ appStage: 'LIGHT_CHAT' })
+      setAppStage('LIGHT_CHAT')
+    } catch {
+      // Fall back to entering coaching without a summary
+      updateMemory({ appStage: 'LIGHT_CHAT' })
+      setAppStage('LIGHT_CHAT')
+    } finally {
+      setFinalizing(false)
+    }
+  }, [finalizing, messages, addMessage, updateMemory, setAppStage])
+
   // ── Composer send ──────────────────────────────────────────────────────
   const handleSend = useCallback((text: string) => {
     void send(text)
@@ -260,7 +302,10 @@ export default function AdvicePage() {
           /* Normal chat UI */
           <div ref={messagesScrollRef} className="absolute inset-0 overflow-y-auto chat-messages px-4 pb-4 pt-2">
             <div className="max-w-lg mx-auto">
-              <MessageList messages={messages} revealMessageId={lastCompletedMessageId} />
+              <MessageList
+                messages={messages}
+                revealMessageId={appStage === 'ONBOARDING' ? null : lastCompletedMessageId}
+              />
             </div>
           </div>
         )}
@@ -296,21 +341,37 @@ export default function AdvicePage() {
           </div>
         )}
 
-        {/* Finish onboarding — visible only during ONBOARDING stage */}
+        {/* Progress + finalize controls — visible only during ONBOARDING stage */}
         {appStage === 'ONBOARDING' && (
-          <div className="mb-2 flex justify-center">
-            <button
-              type="button"
-              onClick={() => enterLightChat()}
-              className="text-xs font-medium px-4 py-2 rounded-full transition-opacity opacity-70 hover:opacity-100"
-              style={{
-                color: 'var(--cmc-teal-700, #2C7A72)',
-                background: 'rgba(63,168,156,0.1)',
-                border: '1px solid rgba(63,168,156,0.3)',
-              }}
-            >
-              Finish onboarding → Start coaching
-            </button>
+          <div className="mb-2">
+            {messages.length > 1 && onboardingSegment < 9 && (
+              <p className="text-xs text-center py-1" style={{ color: 'var(--text-tertiary)' }}>
+                {getOnboardingProgressLabel(onboardingSegment)}
+              </p>
+            )}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => enterLightChat()}
+                className="text-xs font-medium px-4 py-2 rounded-full transition-opacity opacity-60 hover:opacity-100"
+                style={{
+                  color: 'var(--text-tertiary)',
+                  background: 'rgba(0,0,0,0.04)',
+                  border: '1px solid rgba(0,0,0,0.08)',
+                }}
+              >
+                Skip to coaching
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleFinalize()}
+                disabled={finalizing || isBusy || messages.length === 0}
+                className="text-xs font-semibold px-4 py-2 rounded-full text-white disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, var(--cmc-teal-500), var(--cmc-teal-700))' }}
+              >
+                {finalizing ? 'Generating…' : 'Finish & see summary'}
+              </button>
+            </div>
           </div>
         )}
 

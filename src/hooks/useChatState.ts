@@ -68,6 +68,12 @@ export interface ChatStateReturn {
   // Active coach
   activeCoach: CoachId | null
   setActiveCoach: (id: CoachId | null) => void
+
+  // Onboarding progress (0–9; updated from X-Onboarding-Segment response header)
+  onboardingSegment: number
+
+  // Close-phase flags — one-way booleans that prevent summary re-entry
+  onboardingClosePhase: { spokenDone: boolean; writtenDone: boolean }
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -100,6 +106,15 @@ export function useChatState(): ChatStateReturn {
 
   // ── Active coach ────────────────────────────────────────────────────────
   const [activeCoach, setActiveCoach] = useState<CoachId | null>(null)
+
+  // ── Onboarding segment (0–9, driven by X-Onboarding-Segment header) ─────
+  const [onboardingSegment, setOnboardingSegment] = useState<number>(0)
+
+  // ── Close-phase flags (one-way; set via response headers, passed back to API)
+  const [onboardingClosePhase, setOnboardingClosePhase] = useState<{
+    spokenDone: boolean
+    writtenDone: boolean
+  }>({ spokenDone: false, writtenDone: false })
 
   // ── Load memory from localStorage after hydration ───────────────────────
   useEffect(() => {
@@ -188,7 +203,12 @@ export function useChatState(): ChatStateReturn {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: isOnboarding
-          ? JSON.stringify({ input: trimmed, history: historyForApi, finalize: false })
+          ? JSON.stringify({
+              input: trimmed,
+              history: historyForApi,
+              finalize: false,
+              closePhase: onboardingClosePhase,
+            })
           : JSON.stringify({
               input: trimmed,
               history: historyForApi,
@@ -203,6 +223,19 @@ export function useChatState(): ChatStateReturn {
 
       if (!res.ok || !res.body) {
         throw new Error(`API error ${res.status}`)
+      }
+
+      // Track onboarding progress and close-phase state from response headers
+      if (isOnboarding) {
+        const seg = res.headers.get('X-Onboarding-Segment')
+        if (seg !== null) setOnboardingSegment(parseInt(seg, 10))
+
+        if (res.headers.get('X-Spoken-Summary') === '1') {
+          setOnboardingClosePhase(prev => ({ ...prev, spokenDone: true }))
+        }
+        if (res.headers.get('X-Summary-Complete') === '1') {
+          setOnboardingClosePhase(prev => ({ ...prev, spokenDone: true, writtenDone: true }))
+        }
       }
 
       // Add a streaming placeholder for the assistant reply
@@ -251,7 +284,7 @@ export function useChatState(): ChatStateReturn {
         return prev
       })
     }
-  }, [status, memory, userId, appStage, activeCoach, clearError])
+  }, [status, memory, userId, appStage, activeCoach, clearError, onboardingClosePhase])
 
   return {
     appStage,
@@ -272,5 +305,7 @@ export function useChatState(): ChatStateReturn {
     resetUser,
     activeCoach,
     setActiveCoach,
+    onboardingSegment,
+    onboardingClosePhase,
   }
 }
