@@ -147,43 +147,51 @@ function isRecentNonAcuteOverdose(text: string): boolean {
 }
 
 /**
- * Returns true if any recent assistant or user message indicates the post-overdose
- * assessment branch is already active (so it persists across turns).
+ * Returns true if the conversation is currently in the post-overdose assessment
+ * branch. Measured by finding the first user message that disclosed a recent
+ * non-acute overdose and counting user turns since then.
+ *
+ * Stays active for up to MAX_OVERDOSE_BRANCH_TURNS user turns — enough to
+ * cover all 7 assessment areas. After that, the model bridges back naturally
+ * to regular onboarding regardless of what the assistant history contains.
+ * This avoids the fragile phrase-matching approach which could keep the branch
+ * alive indefinitely if the model keeps using words like "narcan".
  */
+const MAX_OVERDOSE_BRANCH_TURNS = 8
 function isInPostOverdoseBranch(history: Msg[]): boolean {
-  return history.slice(-10).some(m => {
-    if (m.role !== 'assistant') return false
-    const c = (m.content || '').toLowerCase()
-    return (
-      c.includes('narcan') ||
-      c.includes('naloxone') ||
-      c.includes('glad you\'re still here') ||
-      c.includes('post-overdose') ||
-      c.includes('since the overdose') ||
-      c.includes('after the od')
-    )
-  })
+  const overdoseIdx = history.findIndex(
+    m => m.role === 'user' && isRecentNonAcuteOverdose(m.content || '')
+  )
+  if (overdoseIdx === -1) return false
+  const userTurnsSince = history.slice(overdoseIdx).filter(m => m.role === 'user').length
+  return userTurnsSince <= MAX_OVERDOSE_BRANCH_TURNS
 }
 
 /* -------- post-overdose assessment prompt -------- */
 const POST_OVERDOSE_BRANCH_PROMPT = `
-POST-OVERDOSE ASSESSMENT — a recent overdose was disclosed. Pause the regular onboarding flow.
+POST-OVERDOSE CONTEXT — the person disclosed a recent overdose that was not an active emergency.
 
-Your priorities for the next several turns, in order:
+Your priorities over the next several turns, in order:
 1. Immediate physical safety: Are they feeling okay physically right now? Any lingering effects?
-2. Current use: Have they used since the overdose? What does use look like right now?
+2. Current use: Have they used since the overdose? What does that look like right now?
 3. Overdose context: What happened — substance involved, alone or with others?
-4. Naloxone access: Do they have Narcan at home now? Do people around them know how to use it?
+4. Naloxone access: Do they have Narcan at home now? Does anyone around them know how to use it?
 5. Alone vs. with others: Do they tend to use alone, or is someone usually around?
 6. Treatment/medication linkage: Are they connected to a doctor, program, or medication like Suboxone or methadone?
 7. Near-future risk: Any upcoming high-risk situations in the next few days?
 
-STYLE RULES for this branch:
+DE-ESCALATION — calibrate tone based on what they've said:
+- Once they confirm they are physically safe now, not in immediate danger, and their current situation is clear: lower the sense of urgency immediately. Do not continue in a crisis register. Shift to warm, curious, conversational tone — the same you would use for any onboarding topic.
+- If they are on Suboxone or connected to treatment, acknowledge that directly and briefly ("Good to know — that's a solid foundation"), then move on. Do not keep circling back to the same safety question.
+- Do not project danger onto a situation the person has already described as stable.
+- Areas 1–3 are urgent; areas 4–7 are important but not urgent. If 1–3 are clearly covered, your tone should reflect that.
+
+STYLE RULES:
 - Warm and direct, not clinical. One question per turn.
 - Do not use the word "assessment" or "screening" aloud.
 - Do not dramatize. Do not extract promises.
-- After gathering the 7 areas above, bridge naturally back into the regular onboarding domains.
-- Offer SAMHSA (1-800-662-4357) as a resource for treatment connection if relevant.
+- After gathering the areas above, bridge naturally back into regular onboarding: "I want to make sure I understand what brought you here more broadly — what else feels important to share?"
+- Offer SAMHSA (1-800-662-4357) as a resource for treatment connection only if relevant and not already connected.
 `.trim()
 
 /* -------- safety screen -------- */
@@ -754,6 +762,28 @@ export async function POST(req: NextRequest) {
     const segmentComplete = hasEnoughSignal(currentSegment, prior, input)
     const nextSegment = segmentComplete ? Math.min(currentSegment + 1, 9) : currentSegment
 
+    // Post-overdose branch: check early — before summary checks — so the
+    // assessment takes priority over spoken-summary or finalize triggers.
+    // The branch exits automatically after MAX_OVERDOSE_BRANCH_TURNS user turns.
+    const inOverdoseBranch = isRecentNonAcuteOverdose(input) || isInPostOverdoseBranch(prior)
+    if (inOverdoseBranch) {
+      const overdoseConvo: Msg[] = [
+        ...base,
+        ...prior,
+        { role: 'system', content: POST_OVERDOSE_BRANCH_PROMPT },
+        { role: 'user', content: input || '' },
+      ]
+      const overdoseText = await callOpenAI(overdoseConvo, 500, 0.4)
+      return new Response(stripHtmlComments(overdoseText || buildFallback(input)), {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Onboarding-Segment': String(currentSegment),
+          'X-Safety-Type': 'post_overdose_branch',
+        },
+      })
+    }
+
     // If last turn was a summary offer and user said yes now, produce the summary.
     if (lastTurnWasOfferAndUserSaidYes(transcriptWithCurrent) || userAskedForSummary(input || '')) {
       const messages: Msg[] = [
@@ -838,27 +868,6 @@ export async function POST(req: NextRequest) {
           'Cache-Control': 'no-store',
           'X-Onboarding-Segment': String(nextSegment),
           'X-Spoken-Summary': '1',
-        },
-      })
-    }
-
-    // Post-overdose branch: inject specialized assessment prompt if recent non-acute
-    // overdose was disclosed in the current input OR is already active in the history.
-    const inOverdoseBranch = isRecentNonAcuteOverdose(input) || isInPostOverdoseBranch(prior)
-    if (inOverdoseBranch) {
-      const overdoseConvo: Msg[] = [
-        ...base,
-        ...prior,
-        { role: 'system', content: POST_OVERDOSE_BRANCH_PROMPT },
-        { role: 'user', content: input || '' },
-      ]
-      const overdoseText = await callOpenAI(overdoseConvo, 500, 0.4)
-      return new Response(stripHtmlComments(overdoseText || buildFallback(input)), {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': 'no-store',
-          'X-Onboarding-Segment': String(currentSegment),
-          'X-Safety-Type': 'post_overdose_branch',
         },
       })
     }

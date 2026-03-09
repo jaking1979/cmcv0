@@ -34,12 +34,9 @@ function katoGreeting(preferredName: string | null): string {
     : "What would you like to work on today? I'm here and ready."
 }
 
-function getOnboardingProgressLabel(segment: number): string {
-  if (segment <= 1) return 'About 8–10 questions left'
-  if (segment <= 3) return 'About 5–7 questions left'
-  if (segment <= 5) return 'About 3–5 questions left'
-  if (segment <= 7) return 'About 2–3 questions left'
-  return 'Almost done'
+function onboardingProgressFraction(segment: number): { covered: number; total: number } {
+  // segment 0–9 maps to 10 topics; clamp to prevent display > 100%
+  return { covered: Math.min(segment + 1, 10), total: 10 }
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -344,11 +341,35 @@ export default function AdvicePage() {
         {/* Progress + finalize controls — visible only during ONBOARDING stage */}
         {appStage === 'ONBOARDING' && (
           <div className="mb-2">
-            {messages.length > 1 && onboardingSegment < 9 && (
-              <p className="text-xs text-center py-1" style={{ color: 'var(--text-tertiary)' }}>
-                {getOnboardingProgressLabel(onboardingSegment)}
-              </p>
-            )}
+            {messages.length > 1 && onboardingSegment < 9 && (() => {
+              const { covered, total } = onboardingProgressFraction(onboardingSegment)
+              const pct = Math.max(6, Math.round((covered / total) * 100))
+              return (
+                <div className="mb-3 px-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                      Getting to know you
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                      {covered} of {total}
+                    </span>
+                  </div>
+                  <div
+                    className="w-full rounded-full overflow-hidden"
+                    style={{ height: 3, background: 'rgba(0,0,0,0.07)' }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${pct}%`,
+                        background: 'linear-gradient(90deg, var(--cmc-teal-500), var(--cmc-teal-700))',
+                        transition: 'width 0.5s ease',
+                      }}
+                    />
+                  </div>
+                </div>
+              )
+            })()}
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"

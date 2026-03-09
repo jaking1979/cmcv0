@@ -123,6 +123,18 @@ export function useChatState(): ChatStateReturn {
     })
   }, [userId])
 
+  // ── Reset onboarding transient state when entering a new session ─────────
+  // If appStage transitions TO 'ONBOARDING', clear any carry-over close-phase
+  // flags and segment counter from a prior session within the same React mount
+  // (e.g., user navigated back to FIRST_RUN_CHOICE and chose onboarding again).
+  useEffect(() => {
+    if (appStage === 'ONBOARDING') {
+      setOnboardingClosePhase({ spokenDone: false, writtenDone: false })
+      setOnboardingSegment(0)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appStage])
+
   // ── Stage helpers ────────────────────────────────────────────────────────
   const setAppStage = useCallback((stage: AppStage) => {
     _setAppStage(stage)

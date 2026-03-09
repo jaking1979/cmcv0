@@ -40,11 +40,16 @@ type MessageListProps = {
 
 // ── AssistantBubble ───────────────────────────────────────────────────────────
 /**
- * Renders an assistant message as one or more sequential bubbles.
+ * Renders an assistant message.
  *
- * - If `revealMessageId` matches this message's id: split content into
- *   paragraphs and reveal them one at a time at PARAGRAPH_GAP_MS intervals.
- * - Otherwise (historical messages, single-paragraph): render immediately.
+ * - If `isNew` is true: split content into paragraphs and reveal them one at
+ *   a time at PARAGRAPH_GAP_MS intervals (sequential bubble reveal).
+ * - Otherwise (historical messages, onboarding messages where revealMessageId
+ *   is always null): render all content in a single coherent bubble.
+ *
+ * Rendering all non-animated messages as a single bubble prevents the
+ * fragmented "canned mini-speech" feel that multi-paragraph onboarding
+ * responses would otherwise produce.
  */
 function AssistantBubble({
   message,
@@ -61,24 +66,19 @@ function AssistantBubble({
   const chunks = React.useMemo(
     () => (streaming ? [message.content] : splitChunks(message.content)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // Re-compute when content changes (during streaming), but keep stable once done
     [message.content, streaming]
   );
 
-  // How many chunks are currently visible.
-  // Historical messages (isNew=false) start fully revealed.
+  // How many chunks are currently visible (only used in animated path).
   const [visibleChunks, setVisibleChunks] = React.useState<number>(
     isNew && !streaming && chunks.length > 1 ? 1 : chunks.length
   );
 
   React.useEffect(() => {
-    // If streaming or not a new multi-chunk message: nothing to sequence
     if (streaming || !isNew || chunks.length <= 1) {
       setVisibleChunks(chunks.length);
       return;
     }
-
-    // Start at 1 (already set in initial state) and schedule the rest
     const timers: ReturnType<typeof setTimeout>[] = [];
     for (let i = 2; i <= chunks.length; i++) {
       timers.push(
@@ -86,7 +86,6 @@ function AssistantBubble({
       );
     }
     return () => timers.forEach(clearTimeout);
-    // Only run when the message transitions from streaming to done (chunks array identity changes)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chunks]);
 
@@ -97,6 +96,38 @@ function AssistantBubble({
     color: 'var(--text-primary)',
   };
 
+  const avatarEl = showAvatar ? (
+    <div
+      className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold mb-0.5"
+      style={{ background: 'linear-gradient(135deg, var(--lavender-400), var(--lavender-500))' }}
+    >
+      J
+    </div>
+  ) : null;
+
+  // Non-animated path: single coherent bubble.
+  // Covers all onboarding messages (revealMessageId=null → isNew always false)
+  // and all historical coaching messages.
+  if (!isNew) {
+    const fullContent = chunks.join('\n\n');
+    return (
+      <div className="flex justify-start items-end gap-2 slide-up">
+        {avatarEl}
+        <div
+          className="max-w-[82%] px-4 py-3 text-[15px] leading-relaxed text-wrap-anywhere whitespace-pre-line"
+          style={bubbleStyle}
+        >
+          {renderHTML ? (
+            <div dangerouslySetInnerHTML={{ __html: fullContent }} />
+          ) : (
+            fullContent
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Animated path: sequential bubble reveal for the latest new coaching message.
   return (
     <>
       {chunks.slice(0, visibleChunks).map((chunk, chunkIdx) => (
@@ -104,24 +135,9 @@ function AssistantBubble({
           key={chunkIdx}
           className="flex justify-start items-end gap-2 slide-up"
         >
-          {/* Avatar: only show on first chunk of this message turn */}
           {showAvatar ? (
-            chunkIdx === 0 ? (
-              <div
-                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold mb-0.5"
-                style={{
-                  background:
-                    'linear-gradient(135deg, var(--lavender-400), var(--lavender-500))',
-                }}
-              >
-                J
-              </div>
-            ) : (
-              // Spacer to keep subsequent bubbles aligned
-              <div className="shrink-0 w-7" />
-            )
+            chunkIdx === 0 ? avatarEl : <div className="shrink-0 w-7" />
           ) : null}
-
           <div
             className="max-w-[82%] px-4 py-3 text-[15px] leading-relaxed text-wrap-anywhere whitespace-pre-line"
             style={bubbleStyle}
