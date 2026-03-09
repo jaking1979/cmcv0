@@ -41,6 +41,7 @@ export default function AdvicePage() {
     appStage, setAppStage,
     messages, addMessage, clearMessages,
     status, isBusy, send, error, clearError,
+    lastCompletedMessageId,
     memory, updateMemory, resetUser,
     activeCoach, setActiveCoach,
   } = useChatState()
@@ -259,8 +260,8 @@ export default function AdvicePage() {
           /* Normal chat UI */
           <div ref={messagesScrollRef} className="absolute inset-0 overflow-y-auto chat-messages px-4 pb-4 pt-2">
             <div className="max-w-lg mx-auto">
-              <MessageList messages={messages} />
-        </div>
+              <MessageList messages={messages} revealMessageId={lastCompletedMessageId} />
+            </div>
           </div>
         )}
       </div>

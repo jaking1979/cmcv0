@@ -55,6 +55,9 @@ export interface ChatStateReturn {
   send: (input: string) => Promise<void>
   error: string | null
   clearError: () => void
+  /** ID of the most recently *completed* (non-streaming) assistant message.
+   *  Consumers can watch this to trigger sequential bubble reveal. */
+  lastCompletedMessageId: string | null
 
   // Identity & memory
   userId: string
@@ -90,6 +93,7 @@ export function useChatState(): ChatStateReturn {
   // ── Send status & error ─────────────────────────────────────────────────
   const [status, setStatus] = useState<SendStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [lastCompletedMessageId, setLastCompletedMessageId] = useState<string | null>(null)
 
   // ── User memory (loaded from localStorage on mount) ─────────────────────
   const [memory, setMemory] = useState<UserMemory>(() => createEmptyMemory(userId))
@@ -159,6 +163,7 @@ export function useChatState(): ChatStateReturn {
     if (!trimmed || status === 'thinking' || status === 'streaming') return
 
     clearError()
+    setLastCompletedMessageId(null)
 
     // Add user message to the history
     const userMsgId = `msg_${Date.now()}_u`
@@ -232,6 +237,7 @@ export function useChatState(): ChatStateReturn {
         )
       )
 
+      setLastCompletedMessageId(assistantMsgId)
       setStatus('done')
     } catch {
       setError('Something went wrong. Please try again.')
@@ -259,6 +265,7 @@ export function useChatState(): ChatStateReturn {
     send,
     error,
     clearError,
+    lastCompletedMessageId,
     userId,
     memory,
     updateMemory,
