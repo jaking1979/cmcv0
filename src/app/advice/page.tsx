@@ -34,9 +34,19 @@ function katoGreeting(preferredName: string | null): string {
     : "What would you like to work on today? I'm here and ready."
 }
 
-function onboardingProgressFraction(segment: number): { covered: number; total: number } {
-  // segment 0–9 maps to 10 topics; clamp to prevent display > 100%
-  return { covered: Math.min(segment + 1, 10), total: 10 }
+function getOnboardingProgressLabel(segment: number): string {
+  const labels: Record<number, string> = {
+    0: 'Just getting started',
+    1: 'Understanding what brought you here',
+    2: 'Getting a picture of things',
+    3: 'What tends to happen',
+    4: 'What you\'re hoping for',
+    5: 'What makes it harder',
+    6: 'What helps',
+    7: 'How you handle things',
+    8: 'Almost done',
+  }
+  return labels[Math.min(segment, 8)] ?? 'Pulling it together'
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -50,9 +60,16 @@ export default function AdvicePage() {
     memory, updateMemory, resetUser,
     activeCoach, setActiveCoach,
     onboardingSegment,
+    onboardingClosePhase,
   } = useChatState()
 
   const [finalizing, setFinalizing] = useState(false)
+
+  // Ref guard: prevents the auto-transition from firing more than once per
+  // onboarding session. Resets automatically when appStage leaves ONBOARDING
+  // (the useChatState reset effect clears the close-phase flags, and on next
+  // ONBOARDING entry this component will have a fresh closure).
+  const onboardingTransitionedRef = useRef(false)
 
   // ── iOS PWA keyboard fix ───────────────────────────────────────────────
   // Primary fix (CSS): the root div uses `position: fixed; inset: 0`.
@@ -82,6 +99,27 @@ export default function AdvicePage() {
       messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight
     }
   }, [isKeyboardOpen])
+
+  // Auto-transition out of ONBOARDING when the written summary has been delivered
+  // via the conversational path (user said "yes" to the summary offer).
+  // handleFinalize() handles the explicit "Finish & see summary" button path separately.
+  useEffect(() => {
+    if (
+      onboardingClosePhase.writtenDone &&
+      appStage === 'ONBOARDING' &&
+      !onboardingTransitionedRef.current
+    ) {
+      onboardingTransitionedRef.current = true
+      addMessage({
+        id: `kato_transition_${Date.now()}`,
+        role: 'assistant',
+        content: "I've got a first-pass picture of where you're starting from. We can start coaching from here — what's on your mind?",
+        createdAt: Date.now(),
+      })
+      updateMemory({ appStage: 'LIGHT_CHAT' })
+      setAppStage('LIGHT_CHAT')
+    }
+  }, [onboardingClosePhase.writtenDone, appStage, addMessage, updateMemory, setAppStage])
 
   // ONBOARDING uses the inline chat UI (not the FirstRunFlow overlay), so it's excluded from isFirstRun.
   const isFirstRun = appStage !== 'LIGHT_CHAT' && appStage !== 'PERSONALIZED_CHAT' && appStage !== 'ONBOARDING'
@@ -342,16 +380,12 @@ export default function AdvicePage() {
         {appStage === 'ONBOARDING' && (
           <div className="mb-2">
             {messages.length > 1 && onboardingSegment < 9 && (() => {
-              const { covered, total } = onboardingProgressFraction(onboardingSegment)
-              const pct = Math.max(6, Math.round((covered / total) * 100))
+              const pct = Math.max(8, Math.round(((onboardingSegment + 1) / 10) * 100))
               return (
                 <div className="mb-3 px-1">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                      Getting to know you
-                    </span>
-                    <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                      {covered} of {total}
+                      {getOnboardingProgressLabel(onboardingSegment)}
                     </span>
                   </div>
                   <div

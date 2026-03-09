@@ -24,19 +24,27 @@ const SYSTEM_PROMPT_V1 = [
 const SPOKEN_SUMMARY_PROMPT = `
 SPOKEN SUMMARY — generate this now. Do not ask another intake question.
 
-Deliver the spoken summary in this order:
-1. Open with: "Here's what I'm hearing from you." (or a natural variation)
-2. 2–3 sentences: what they've shared about their use, what brought them here, and their goal — even if it's vague or undecided
-3. 1–2 sentences: what tends to make it hard AND what has helped or could help, even a little
-4. 1 sentence: one thing you noticed about how they approach this or what they bring to it, framed supportively
-5. End with: "This is a first pass — I'll get a better picture as we keep talking. Does this feel roughly right, or is there something important I missed?"
-6. After a line break, add exactly this line: "Would you like me to write up a fuller version you can keep?"
+Deliver the spoken summary in EXACTLY this structure and order — do not improvise the sequence:
 
-Total: ≤130 words. Plain conversational language only. No headers, no bullets, no clinical terms, no stage names.
+1. Open with: "Here's what I'm hearing from you." (or a close natural variation — do not skip this line)
+2. One sentence: plain-language description of the current use or behavior pattern, using the user's own words.
+3. One sentence: why they came now plus their goal, even if vague or undecided.
+4. One sentence: 1–2 key risk factors — specific triggers, high-risk situations, or emotional drivers they actually named.
+5. One sentence beginning with "But you've also got" or a natural equivalent: 1–2 concrete protective factors (a person, a routine, a past stretch of doing better, a resource). REQUIRED — do not skip this sentence. If you have no signal for protective factors yet, do not deliver the summary — ask one more question about what has helped, even a little.
+6. One sentence: one observation about how they tend to handle this — a skill, a gap, or a useful starting point. Do not moralize or prescribe.
+7. End with exactly: "This is a first pass — I'll get a better picture as we keep talking. Does this feel roughly right, or is there something important I missed?"
+8. After a blank line, add exactly: "Would you like me to write up a fuller version you can keep?"
+
+RULES:
+- Reflect BOTH risk (sentence 4) and protection (sentence 5) — never skip either.
+- ≤130 words total.
+- No headers, no bullets, no clinical terms, no stage names.
+- Use the user's own words wherever possible.
+- Do not insert generic filler phrases like "as we navigate this journey" or "one useful place to begin."
 `.trim()
 
 const FINALIZE_PROMPT = `
-You are writing the fuller onboarding summary for the user.
+You are writing the fuller written onboarding summary for the user. Write all 4 paragraphs. This is a requirement — do not skip any paragraph.
 
 RULES — any violation is a failure:
 - Plain conversational prose only — NO markdown headers (# or ##), NO bold labels (**text**), NO bullet lists
@@ -45,18 +53,20 @@ RULES — any violation is a failure:
 - Ground every sentence in what the user actually said — do not invent or extrapolate beyond the transcript
 - Do not moralize, push toward change, or reframe pain as growth
 - Do not use clinical jargon: no "relapse," "dependence," "disorder," "addict"
+- Do not use generic filler phrases like "one useful place to begin," "as we navigate this," or "it may be worth exploring"
+- Tone: warm, tentative, grounded — like a thoughtful colleague capturing what they heard, not a therapy note
 
-Write exactly 3–4 plain paragraphs separated by blank lines:
+Write exactly 4 plain paragraphs separated by blank lines:
 
-Paragraph 1: What they shared about their use, what brought them here, and their goal — even if the goal is "not sure yet." Use their own words where possible.
+Paragraph 1: What they are using or doing, how often, what brought them here now, and their goal in their own words. If they expressed ambivalence (e.g., "I can win it back," "part of me doesn't want to stop"), reflect both sides — do not flatten it.
 
-Paragraph 2: What tends to make it hard — the specific triggers, situations, or feelings they named. Be concrete, tied to what they said, not general.
+Paragraph 2: The specific triggers, situations, and emotional states that make it hardest — name what they actually said. Be concrete. Do not produce a generic list of risk factors.
 
-Paragraph 3: What helps, even a little — people, routines, past stretches when things went better, or anything they identified as a resource.
+Paragraph 3: What helps or has helped, even a little — people, routines, places, past stretches when things went better. Reflect at least one concrete protective factor using their language. If there are genuinely no protective factors in the transcript, write: "You haven't named much on this side yet — that's something we can pay attention to as we go."
 
-Paragraph 4 (include only if there is enough material): One thing that stands out as a useful place to begin. Frame it as a first hypothesis, not a plan or prescription. End the paragraph with: "This is a first pass — we'll fill in more as we keep talking."
+Paragraph 4: One thing you noticed about how they approach this — a skill, a gap, or a useful starting point. Frame it as a first observation, not a plan. End with exactly: "This is a first pass — we can fill in more as we go. From here, we can start wherever feels most relevant."
 
-Maximum 200 words total. No markdown. No headers. Plain paragraphs separated by blank lines only.
+Maximum 220 words total. No markdown. No headers. Plain paragraphs separated by blank lines only.
 `.trim()
 
 const OFFER_MARK = '<!--OFFER_SUMMARY-->'
@@ -99,7 +109,7 @@ function mentionsConsequences(text: string) {
 }
 function mentionsSupports(text: string) {
   const t = (text || '').toLowerCase()
-  return /(friend|uncle|aunt|mom|dad|partner|girlfriend|boyfriend|spouse|wife|husband|therap|group|meeting|sponsor|doctor|md|coach|support|community)/.test(t)
+  return /(friend|uncle|aunt|mom|dad|partner|girlfriend|boyfriend|spouse|wife|husband|therap|group|meeting|sponsor|doctor|md|coach|support|community|exercise|gym|run\b|walk\b|workout|hobby|kids?\b|my family|routine|kept me|helps me|helped me|steadying|grounding|calms me|worked before|got through|better when|good stretch|sober (for|stretch|period)|daughter|son|my (mom|dad|wife|husband|partner))/.test(t)
 }
 function mentionsFunction(text: string) {
   const t = (text || '').toLowerCase()
@@ -119,7 +129,7 @@ function mentionsReadiness(text: string) {
 }
 function mentionsCommunicationStyle(text: string) {
   const t = (text || '').toLowerCase()
-  return /(direct|give it to me straight|just tell me|practical|gentle|reflective|prefer.*support|how (i'd like|you) to talk|feedback style|blunt|soft|help me think)/.test(t)
+  return /(direct|give it to me straight|just tell me|practical|gentle|reflective|prefer.*support|how (i'd like|you) to talk|feedback style|blunt|soft|help me think|think (it|things) through|think through|understand first|figure it out|more (reflective|practical|direct|gentle)|both.*practical|both.*think|then get practical|get practical|step.?by.?step|need someone to)/.test(t)
 }
 function mentionsSafetyTopics(text: string) {
   const t = (text || '').toLowerCase()
@@ -127,7 +137,7 @@ function mentionsSafetyTopics(text: string) {
 }
 function mentionsEmotionalDrivers(text: string) {
   const t = (text || '').toLowerCase()
-  return /(anxiet|depress|mood|mental health|panic|sad|overwhelm|numb|empty|disconnected|trauma|ptsd|worthless|shame|guilt|angry|rage|lonely|isolat|grief|stress|burnout|can't (sleep|function|cope)|low energy|exhausted|hopeless)/.test(t)
+  return /(anxiet|depress|mood|mental health|panic|sad|overwhelm|numb|empty|disconnected|trauma|ptsd|worthless|shame|guilt|angry|rage|lonely|isolat|grief|stress|burnout|can't (sleep|function|cope)|low energy|exhausted|hopeless|excite|thrill|rush\b|feel alive|feel something|feel (good|better)\b|relief|to forget|to not think|to deal with|escape|bored\b|boredom|when i'm (stressed|upset|bored|alone|anxious|frustrated)|it helps me|makes me feel|makes it easier|feel more (social|confident|fun|relaxed|calm))/.test(t)
 }
 function mentionsValues(text: string) {
   const t = (text || '').toLowerCase()
@@ -410,13 +420,14 @@ function hasMinimumRequiredCoverage(history: Msg[], latest: string): boolean {
     .join('\n')
 
   return (
-    mentionsFrequency(userText) &&                   // behavior pattern
-    mentionsTriggers(userText) &&                    // triggers/high-risk
-    mentionsFunction(userText) &&                    // function
-    mentionsConsequences(userText) &&                // costs
-    hasGoal(userText) &&                             // goal
-    (mentionsEmotionalDrivers(userText) ||           // emotional drivers OR supports
-     mentionsSupports(userText))
+    mentionsFrequency(userText) &&           // current use / behavior pattern
+    mentionsTriggers(userText) &&            // risk map
+    mentionsFunction(userText) &&            // function (why they use/do it)
+    mentionsConsequences(userText) &&        // costs / consequences
+    hasGoal(userText) &&                     // goal / agenda
+    mentionsEmotionalDrivers(userText) &&   // emotional drivers (separate domain)
+    mentionsSupports(userText) &&           // protection map (separate domain)
+    mentionsCommunicationStyle(userText)    // communication style preference
   )
 }
 
@@ -424,7 +435,7 @@ function shouldOfferSummaryNow(history: Msg[], latest: string) {
   const userTurns = history.filter(m => m.role === 'user').length
   if (userTurns < 7) return false
   const segment = deriveCurrentSegment(history, latest)
-  // Require all 6 minimum required domains AND segment 9 (wrap-up domain) AND minimum turn count.
+  // Require all 8 minimum required domains AND segment 9 (wrap-up domain) AND minimum turn count.
   return hasMinimumRequiredCoverage(history, latest) && userTurns >= 7 && segment >= 9
 }
 
@@ -460,7 +471,8 @@ function hasRecentlySummarized(history: Msg[], withinTurns = 14) {
     const c = (m.content || '').toLowerCase()
     return (
       c.includes(DONE_MARK) ||                                          // backward compat
-      c.includes("we'll fill in more as we keep talking") ||            // FINALIZE_PROMPT phrase
+      c.includes("we'll fill in more as we keep talking") ||            // old FINALIZE_PROMPT phrase
+      c.includes("from here, we can start wherever feels most relevant") || // new FINALIZE_PROMPT closer
       c.includes("i'll get a better picture as we keep talking") ||     // SPOKEN_SUMMARY_PROMPT phrase
       c.includes("here's what i'm hearing") ||                          // model-generated spoken summary
       c.includes("here's a brief summary") ||

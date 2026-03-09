@@ -271,21 +271,29 @@ TONE:
 
 **What it is:** Injected as an additional system message (before the user's final input) to trigger the spoken summary at the close of onboarding. Produces a conversational first-pass summary and offers a fuller written version.
 
-**Triggered when:** `shouldOfferSummaryNow()` returns true — `hasMinimumRequiredCoverage()` passes all 6 required domains (behavior pattern, triggers, function, costs, goal, and emotional drivers or supports) AND ≥ 7 user turns AND segment ≥ 9 AND a summary has not recently been offered or produced.
+**Triggered when:** `shouldOfferSummaryNow()` returns true — `hasMinimumRequiredCoverage()` passes all 8 required domains (behavior pattern, triggers, function, costs, goal, emotional drivers, supports/protection map, and communication style) AND ≥ 7 user turns AND segment ≥ 9 AND a summary has not recently been offered or produced.
 
 **Current content:**
 ```
 SPOKEN SUMMARY — generate this now. Do not ask another intake question.
 
-Deliver the spoken summary in this order:
-1. Open with: "Here's what I'm hearing from you." (or a natural variation)
-2. 2–3 sentences: what they've shared about their use, what brought them here, and their goal — even if it's vague or undecided
-3. 1–2 sentences: what tends to make it hard AND what has helped or could help, even a little
-4. 1 sentence: one thing you noticed about how they approach this or what they bring to it, framed supportively
-5. End with: "This is a first pass — I'll get a better picture as we keep talking. Does this feel roughly right, or is there something important I missed?"
-6. After a line break, add exactly this line: "Would you like me to write up a fuller version you can keep?"
+Deliver the spoken summary in EXACTLY this structure and order — do not improvise the sequence:
 
-Total: ≤130 words. Plain conversational language only. No headers, no bullets, no clinical terms, no stage names.
+1. Open with: "Here's what I'm hearing from you." (or a close natural variation — do not skip this line)
+2. One sentence: plain-language description of the current use or behavior pattern, using the user's own words.
+3. One sentence: why they came now plus their goal, even if vague or undecided.
+4. One sentence: 1–2 key risk factors — specific triggers, high-risk situations, or emotional drivers they actually named.
+5. One sentence beginning with "But you've also got" or a natural equivalent: 1–2 concrete protective factors (a person, a routine, a past stretch of doing better, a resource). REQUIRED — do not skip this sentence. If you have no signal for protective factors yet, do not deliver the summary — ask one more question about what has helped, even a little.
+6. One sentence: one observation about how they tend to handle this — a skill, a gap, or a useful starting point. Do not moralize or prescribe.
+7. End with exactly: "This is a first pass — I'll get a better picture as we keep talking. Does this feel roughly right, or is there something important I missed?"
+8. After a blank line, add exactly: "Would you like me to write up a fuller version you can keep?"
+
+RULES:
+- Reflect BOTH risk (sentence 4) and protection (sentence 5) — never skip either.
+- ≤130 words total.
+- No headers, no bullets, no clinical terms, no stage names.
+- Use the user's own words wherever possible.
+- Do not insert generic filler phrases like "as we navigate this journey" or "one useful place to begin."
 ```
 
 **Source:** `src/app/api/onboarding/route.ts` — `SPOKEN_SUMMARY_PROMPT`
@@ -296,13 +304,13 @@ Total: ≤130 words. Plain conversational language only. No headers, no bullets,
 
 **What it is:** Instructs the AI to write the fuller written intake summary. Invoked when the user consents to a written version, explicitly requests a summary, or triggers `wantsFinish()`. Has strict anti-markdown and anti-clinical-language rules.
 
-**Output format:** 3–4 plain prose paragraphs, max 200 words, no markdown.
+**Output format:** Exactly 4 plain prose paragraphs, max 220 words, no markdown. All 4 paragraphs are required (including paragraph 3 for protective factors).
 
 **Note:** Deliberately does NOT include `SYSTEM_PROMPT_V1` / `ONBOARDING_V1_PROMPT` — those contain `≤160 words` and conversational guardrails that would override the longer written summary format.
 
 **Current content:**
 ```
-You are writing the fuller onboarding summary for the user.
+You are writing the fuller written onboarding summary for the user. Write all 4 paragraphs. This is a requirement — do not skip any paragraph.
 
 RULES — any violation is a failure:
 - Plain conversational prose only — NO markdown headers (# or ##), NO bold labels (**text**), NO bullet lists
@@ -311,18 +319,20 @@ RULES — any violation is a failure:
 - Ground every sentence in what the user actually said — do not invent or extrapolate beyond the transcript
 - Do not moralize, push toward change, or reframe pain as growth
 - Do not use clinical jargon: no "relapse," "dependence," "disorder," "addict"
+- Do not use generic filler phrases like "one useful place to begin," "as we navigate this," or "it may be worth exploring"
+- Tone: warm, tentative, grounded — like a thoughtful colleague capturing what they heard, not a therapy note
 
-Write exactly 3–4 plain paragraphs separated by blank lines:
+Write exactly 4 plain paragraphs separated by blank lines:
 
-Paragraph 1: What they shared about their use, what brought them here, and their goal — even if the goal is "not sure yet." Use their own words where possible.
+Paragraph 1: What they are using or doing, how often, what brought them here now, and their goal in their own words. If they expressed ambivalence (e.g., "I can win it back," "part of me doesn't want to stop"), reflect both sides — do not flatten it.
 
-Paragraph 2: What tends to make it hard — the specific triggers, situations, or feelings they named. Be concrete, tied to what they said, not general.
+Paragraph 2: The specific triggers, situations, and emotional states that make it hardest — name what they actually said. Be concrete. Do not produce a generic list of risk factors.
 
-Paragraph 3: What helps, even a little — people, routines, past stretches when things went better, or anything they identified as a resource.
+Paragraph 3: What helps or has helped, even a little — people, routines, places, past stretches when things went better. Reflect at least one concrete protective factor using their language. If there are genuinely no protective factors in the transcript, write: "You haven't named much on this side yet — that's something we can pay attention to as we go."
 
-Paragraph 4 (include only if there is enough material): One thing that stands out as a useful place to begin. Frame it as a first hypothesis, not a plan or prescription. End the paragraph with: "This is a first pass — we'll fill in more as we keep talking."
+Paragraph 4: One thing you noticed about how they approach this — a skill, a gap, or a useful starting point. Frame it as a first observation, not a plan. End with exactly: "This is a first pass — we can fill in more as we go. From here, we can start wherever feels most relevant."
 
-Maximum 200 words total. No markdown. No headers. Plain paragraphs separated by blank lines only.
+Maximum 220 words total. No markdown. No headers. Plain paragraphs separated by blank lines only.
 ```
 
 **Source:** `src/app/api/onboarding/route.ts` — `FINALIZE_PROMPT`
@@ -737,5 +747,5 @@ ALL inferences must be:
 - **Summary trigger logic:** `shouldOfferSummaryNow()` now uses `hasMinimumRequiredCoverage()` instead of a raw coverage score. To change what qualifies as "minimum required," edit `hasMinimumRequiredCoverage()` in `route.ts` and update the trigger conditions listed under `SPOKEN_SUMMARY_PROMPT` above.
 - **Close-phase state machine:** The summary loop is prevented by one-way boolean flags (`spokenDone`, `writtenDone`) tracked in `useChatState.ts` and passed back to the API on every request. `writtenDone` hard-gates the entire summary path in `route.ts`. Do not attempt to reset these flags — they are intentionally one-way.
 - **Post-overdose branch:** `isRecentNonAcuteOverdose()` regex in `route.ts` determines which overdose language routes to the assessment branch vs. the static 911 exit. If the pattern needs tuning, update the regex and the detection criteria listed under `POST_OVERDOSE_BRANCH_PROMPT` above.
-- **Adding new heuristics:** Coverage heuristics (`mentionsEmotionalDrivers`, `mentionsValues`, etc.) live in `route.ts`. `coverageScore()` returns 0–10; `hasMinimumRequiredCoverage()` checks 6 required domains by name. Both must be updated together when adding new domains.
+- **Adding new heuristics:** Coverage heuristics (`mentionsEmotionalDrivers`, `mentionsValues`, etc.) live in `route.ts`. `coverageScore()` returns 0–10; `hasMinimumRequiredCoverage()` now requires all 8 named domains: `mentionsFrequency`, `mentionsTriggers`, `mentionsFunction`, `mentionsConsequences`, `hasGoal`, `mentionsEmotionalDrivers`, `mentionsSupports`, and `mentionsCommunicationStyle`. Both `coverageScore()` and `hasMinimumRequiredCoverage()` must be updated together when adding or removing domains.
 - **The ITC stance always takes precedence** over any efficiency, helpfulness, or brevity concern — in the prompts and in this document.
