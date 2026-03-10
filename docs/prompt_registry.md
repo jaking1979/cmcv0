@@ -81,6 +81,8 @@ CRITICAL SAFETY AND SCOPE GUIDELINES:
 
 **Last major revision:** V1 onboarding refactor (March 2026). Folded Domain 3.5 (Emotional Drivers) into Domain 2 (now "Behavior Pattern, High-Risk Contexts, AND Emotional Drivers") to align with 10-domain spec. Added TURN SHAPE VARIETY section to counter mechanical "reflection + question" pattern. Tightened COMPLETION REQUIREMENT from 8 to 9 signals (adding safety screen as required). Strengthened protection map requirement (concrete positive factor, not just a mention). Strengthened communication style requirement (usable signal, not just "I don't know").
 
+**March 2026 hardening (coverage model + domain-agnostic language):** Removed substance-specific example stems from Domains 2, 3, 7, and 8 — all examples are now behavior-agnostic to support non-substance use cases (exercise, sleep, eating, screen time, etc.). Hardened `hasMinimumRequiredCoverage()`: `protectionMap === 'partial'` and `communication === 'partial'` now block the summary gate (only `complete` or `deferred` pass). Added early communication deferral at turn 8+ for "I don't know" with no real style signal. Fixed false positive in `hasSustainTalk()` (removed "it helps me"; added `part of me (likes|enjoys)`). Added `FRUSTRATION_REPAIR_ADDITION` — structural frustration deferral that forces the active domain to `'deferred'` in state (not just prompt) when user signals repetition. Readiness now requires `complete` or `deferred` when `ambivalence_clearly_present` — detection alone no longer auto-completes.
+
 **Key rules:**
 - One question per turn, never more
 - Responses ≤ 160 words (varies by turn shape — some turns may be shorter)
@@ -271,7 +273,16 @@ TONE:
 
 **What it is:** Injected as an additional system message (before the user's final input) to trigger the spoken summary at the close of onboarding. Produces a conversational first-pass summary and offers a fuller written version.
 
-**Triggered when:** `shouldOfferSummaryNow()` returns true — `hasMinimumRequiredCoverage()` passes all required domains (currentUse complete, goals partial+, riskMap partial+, protectionMap partial+, safety not unseen, communication partial+, readiness partial+ when ambivalence clearly present) AND ≥ 8 user turns AND a summary has not recently been offered or produced. **Note: the `segment >= 9` gate has been removed — coverage-led eligibility replaces it.**
+**Triggered when:** `shouldOfferSummaryNow()` returns true — `hasMinimumRequiredCoverage()` passes all required domains AND ≥ 8 user turns AND a summary has not recently been offered or produced. **Note: the `segment >= 9` gate has been removed — coverage-led eligibility replaces it.**
+
+**Minimum required coverage (as of March 2026 hardening):**
+- `currentUse`: complete
+- `goals`: partial or better
+- `riskMap`: partial or better
+- `protectionMap`: **complete or deferred** — `partial` is not enough (bare person mentions without positive framing do not count)
+- `safety`: not unseen
+- `communication`: **complete or deferred** — `partial` is not enough ("I don't know" alone is not actionable signal; deferred at turn 8+ if no real style signal)
+- `readiness`: **complete or deferred when `ambivalence_clearly_present` is true** — ambivalence detected alone does not satisfy this; both sides must have been explored (≥ 10 user turns) or the domain explicitly deferred
 
 **Current content:**
 ```
@@ -426,7 +437,7 @@ STYLE RULES for this branch:
 | `communication` | Communication Style and Closing | communication |
 | `safety` | Safety Screen *(new)* | safety |
 
-**Current content (all 10 domain hints):**
+**Current content (all 11 domain hints):**
 
 **Domain 0:**
 ```
@@ -439,8 +450,8 @@ Do not yet ask about patterns, triggers, solutions, or what would help.
 **Domain 1:**
 ```
 CURRENT ONBOARDING FOCUS: Behavior Pattern
-Goal: Understand what they are using, when, how often, and roughly how much — in their own words.
-Example stems: "What does a typical week look like for you?" or "When you do drink, roughly how much tends to happen?"
+Goal: Understand what they are doing or struggling with, when, how often, and roughly what it looks like — in their own words.
+Example stems: "What does a typical week look like for you?" or "How often does this tend to happen, and what does it usually look like when it does?"
 Do not ask what would help or what might change. Gather information only.
 ```
 
@@ -448,7 +459,7 @@ Do not ask what would help or what might change. Gather information only.
 ```
 CURRENT ONBOARDING FOCUS: Function (What does it give them?)
 Goal: Understand what the behavior does for them in the short term — relief, connection, escape, routine, reward.
-Example stems: "What does drinking do for you in the moment?" or "What does it give you that's hard to get another way?"
+Example stems: "What does this do for you in the moment?" or "What does it give you that's hard to get another way?"
 Do not name the function for them. Do not move to costs yet. Do not ask what they could do instead.
 ```
 
@@ -456,7 +467,7 @@ Do not name the function for them. Do not move to costs yet. Do not ask what the
 ```
 CURRENT ONBOARDING FOCUS: Costs and Consequences
 Goal: Let them name what concerns or bothers them — do not list impacts for them.
-Example stems: "What, if anything, has felt harder because of your drinking?" or "Has anything shifted lately that you've noticed?"
+Example stems: "What, if anything, has felt harder or changed because of this?" or "Has anything shifted lately that you've noticed?"
 Sit with ambivalence. Do not reassure or suggest. Do not ask what would help.
 ```
 
@@ -479,7 +490,7 @@ Explore gently. Do not interpret, resolve, or reframe. Do not ask what they coul
 **Domain 6:**
 ```
 CURRENT ONBOARDING FOCUS: Supports and Resources
-Goal: Map who or what helps them, even a little — people, routines, places, prior efforts.
+Goal: Map who or what helps them, even a little — people, routines, places, prior efforts. Look for concrete protective factors.
 Example stems: "Is there anyone who makes it a bit easier?" or "Have there been times — even briefly — when things went better? What was different then?"
 Do not frame absence of support as a deficit. Accept "nothing" without pushing. Do not ask what would help going forward.
 ```
@@ -487,15 +498,15 @@ Do not frame absence of support as a deficit. Accept "nothing" without pushing. 
 **Domain 7:**
 ```
 CURRENT ONBOARDING FOCUS: Strengths and Prior Navigation
-Goal: Surface what they have already tried, what capacity they have, what they've managed before.
-Example stems: "Have you gotten through a stretch without drinking before, even briefly? What made that possible?" or "What have you tried, even if it didn't stick?"
+Goal: Surface what they have already tried, what capacity they have, what they've managed before — how they handle difficult decisions and impulses.
+Example stems: "Have you had a stretch where things went better — even briefly? What made that possible?" or "When the urge or pull toward this hits, what tends to happen — do you find yourself going with it, or does something make you pause?"
 Do not praise or cheerlead. If they minimize a past effort, explore what they actually did — not just the outcome.
 ```
 
 **Domain 8:**
 ```
 CURRENT ONBOARDING FOCUS: Readiness and Ambivalence
-Goal: Understand where they are right now — not to resolve ambivalence but to understand it.
+Goal: Understand where they are right now — not to resolve ambivalence but to understand it clearly on both sides.
 Example stems: "How does it feel right now — is part of you still unsure about this?" or "What pulls you toward trying, and what pulls you back?"
 Reflect both sides. Do not push toward change. Do not insert change talk.
 ```
@@ -503,9 +514,17 @@ Reflect both sides. Do not push toward change. Do not insert change talk.
 **Domain 9:**
 ```
 CURRENT ONBOARDING FOCUS: Communication Style and Closing
-Goal: Understand how they prefer to receive support, then move toward a summary offer.
+Goal: Understand how they prefer to receive support — practical, reflective, direct, gentle, or mixed.
 Example stems: "When you're working through something tough, do you find it more helpful when someone gets practical, or when they help you think it through?" or "Is there anything about how you'd like me to talk to you that would help?"
-This is the final intake domain. After this, offer a summary.
+Note: "I don't know" is partial, not complete — gently probe once more if needed. This is the final intake domain before the summary.
+```
+
+**Safety:**
+```
+CURRENT ONBOARDING FOCUS: Safety Screen
+Goal: Briefly and warmly check in on any safety-relevant areas that haven't come up — without interrogating.
+Example stems: "Before we go further, I want to check in on one thing — is there anything going on physically or safety-wise that I should know about?" or "Sometimes when people are dealing with this kind of thing, there are moments that feel really unsafe. Has anything like that been happening?"
+Keep it brief. One question only. Do not dramatize. If nothing concerning arises, move on.
 ```
 
 ---
@@ -524,6 +543,30 @@ Do NOT repeat the same question in different words. Do NOT ask "what might help"
 ```
 
 **Source:** `src/app/api/onboarding/route.ts` — `VAGUE_LOOP_ADDITION`
+
+---
+
+### FRUSTRATION\_REPAIR\_ADDITION
+
+**What it is:** Appended to the current domain hint when `FRUSTRATION_PHRASES` detects the user signaling that a domain was already covered (e.g., "I already told you that", "you just asked me this", "same question again"). Paired with a **structural state change** in `route.ts`: the active domain is forced to `'deferred'` in a `workingCoverage` copy and `nextDomainToFocus` is re-derived before hint selection. The structural change ensures the domain is not re-probed on the next turn even if the prompt instruction alone were ignored.
+
+**Triggered when:** `FRUSTRATION_PHRASES.test(input)` is true — detected patterns include "already answered", "I said that", "you already asked", "same question", and related variations.
+
+**Current content:**
+```
+LOOP REPAIR REQUIRED: The user has signaled they already provided this information.
+— Do NOT ask about this domain again — not even with different wording.
+— Mark this domain as covered for now and move on.
+— Respond with one of: (a) briefly acknowledge what you've heard on this topic and shift to a genuinely new domain, (b) offer a short recap of what you've gathered so far and ask what would be useful to explore next, or (c) repair the loop explicitly: "I realize I've circled back to that — let me move on."
+— Do NOT continue normal intake behavior as if nothing happened.
+— Do NOT ask another question about the same domain in this turn.
+```
+
+**State change (structural):** After `frustrationDetected`, `route.ts` uses `HINT_DOMAIN_TO_COVERAGE_FIELD` (a mapping of hint domain keys to `DomainCoverage` fields) to force `workingCoverage[field] = 'deferred'` and re-runs `nextDomainToFocus(workingCoverage, userTurns)`. `shouldOfferSummaryNow()` uses `workingCoverage` so a force-deferred domain counts as deferred (not unseen/partial) for the summary gate.
+
+**Domains that can be force-deferred:** `currentUse`, `function` (sub-area → `currentUse`), `emotionalDrivers` (→ `riskMap`), `costs` (→ `riskMap`), `goals`, `identity` (→ `coachLens`), `protectionMap`, `coachLens`, `readiness`, `communication`. Safety and opening are intentionally excluded — safety cannot be dismissed by frustration.
+
+**Source:** `src/app/api/onboarding/route.ts` — `FRUSTRATION_REPAIR_ADDITION`, `HINT_DOMAIN_TO_COVERAGE_FIELD`
 
 ---
 
@@ -755,8 +798,8 @@ ALL inferences must be:
 - **When adding a new prompt:** Add a new entry with the same structure: What it is, What it is used for, Current content, Source file/export name.
 - **`ITC_MASTER_PROMPT` changes:** Edit `docs/ITC_master_rules.md`, then run `npm run generate:prompt` to regenerate `src/server/ai/generated/itcMasterRules.ts`. Update the summary in this file if the behavioral rules change substantially.
 - **`ONBOARDING_V1_PROMPT` domain changes:** The domain count is **10** (Domain 3.5 folded into Domain 2). If domains are added or removed, update the domain table above, the `DOMAIN_HINTS` table in `route.ts`, and `computeDomainCoverage()` / `nextDomainToFocus()`.
-- **Summary trigger logic:** `shouldOfferSummaryNow()` uses `hasMinimumRequiredCoverage(coverage)` with an explicit `DomainCoverage` object. The old `segment >= 9` gate is removed — summary eligibility is coverage-led. To change what qualifies as "minimum required," edit `hasMinimumRequiredCoverage()` in `route.ts` and update the trigger conditions listed under `SPOKEN_SUMMARY_PROMPT` above.
+- **Summary trigger logic:** `shouldOfferSummaryNow()` uses `hasMinimumRequiredCoverage(coverage)` with an explicit `DomainCoverage` object. The old `segment >= 9` gate is removed — summary eligibility is coverage-led. To change what qualifies as "minimum required," edit `hasMinimumRequiredCoverage()` in **`src/server/onboarding/coverageModel.ts`** and update the trigger conditions listed under `SPOKEN_SUMMARY_PROMPT` above. Note: `protectionMap` and `communication` must reach `'complete'` or `'deferred'` — `'partial'` is not enough. When `ambivalence_clearly_present` is true, `readiness` must also reach `'complete'` or `'deferred'`.
 - **Close-phase state machine:** The summary loop is prevented by one-way boolean flags (`spokenDone`, `writtenDone`) tracked in `useChatState.ts` and passed back to the API on every request. `writtenDone` hard-gates the entire summary path in `route.ts`. Do not attempt to reset these flags — they are intentionally one-way.
 - **Post-overdose branch:** `isRecentNonAcuteOverdose()` regex in `route.ts` determines which overdose language routes to the assessment branch vs. the static 911 exit. If the pattern needs tuning, update the regex and the detection criteria listed under `POST_OVERDOSE_BRANCH_PROMPT` above.
-- **Adding new heuristics:** Coverage heuristics (`mentionsEmotionalDrivers`, `mentionsValues`, etc.) live in `route.ts`. `coverageScore()` returns 0–10; `hasMinimumRequiredCoverage()` now requires all 8 named domains: `mentionsFrequency`, `mentionsTriggers`, `mentionsFunction`, `mentionsConsequences`, `hasGoal`, `mentionsEmotionalDrivers`, `mentionsSupports`, and `mentionsCommunicationStyle`. Both `coverageScore()` and `hasMinimumRequiredCoverage()` must be updated together when adding or removing domains.
+- **Adding new heuristics:** All coverage heuristics (`hasGoal`, `mentionsFrequency`, `mentionsTriggers`, `mentionsConsequences`, `mentionsPositiveProtection`, `countPositiveProtectionSignals`, `hasSustainTalk`, `hasChangeTalk`, `mentionsNonSubstanceBehavior`, etc.) live in **`src/server/onboarding/coverageModel.ts`**. `computeDomainCoverage()` uses these to produce a `DomainCoverage` object; `hasMinimumRequiredCoverage()` gates the summary. When adding or removing a domain, update `computeDomainCoverage()`, `nextDomainToFocus()`, `hasMinimumRequiredCoverage()`, `DOMAIN_HINTS` in `route.ts`, and the `HINT_DOMAIN_TO_COVERAGE_FIELD` mapping.
 - **The ITC stance always takes precedence** over any efficiency, helpfulness, or brevity concern — in the prompts and in this document.

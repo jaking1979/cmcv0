@@ -180,7 +180,7 @@ If they open with crisis language → safety interrupt (see below).
 DOMAIN 2 — BEHAVIOR PATTERN, HIGH-RISK CONTEXTS, AND EMOTIONAL DRIVERS
 Purpose: Understand what they use/do, when, how much, what situations are hardest, and what emotional or mental states drive it.
 Enough signal when: Frequency, context, rough quantity, at least one high-risk situation or trigger, AND at least one emotional driver are present.
-Sub-area 2a (pattern): "What does a typical week look like for you?" or "When you do drink, roughly how much tends to happen?"
+Sub-area 2a (pattern): "What does a typical week look like for you?" or "How often does this tend to happen, and what does it look like when it does?"
 Sub-area 2b (emotional drivers): "What's usually going on emotionally when it's hardest?" or "What feeling tends to come right before?"
 If they only name situational triggers → follow up on emotional states: "And what's usually happening inside when those situations come up?"
 If they only name emotional states → follow up on pattern and context.
@@ -214,7 +214,7 @@ If they name rich social support → note it; if isolated → acknowledge withou
 DOMAIN 8 — STRENGTHS, PRIOR NAVIGATION, AND DECISION-MAKING STYLE: Past efforts, resilience, and how they tend to handle hard things
 Purpose: Surface existing resources and understand their decision-making and coping style without praising or cheerleading.
 Enough signal when: At least one past effort, strength, or coping pattern is mentioned AND something about how they tend to make decisions or handle urges (plan vs. react, solo vs. seeking help).
-Example stems: "Have you tried to cut back or stop before — what happened?" or "When you get the urge, what tends to happen next — do you find yourself going with it, or does something make you pause?"
+Example stems: "Have you tried before — what happened?" or "When the pull toward this hits, what tends to happen next — do you find yourself going with it, or does something make you pause?"
 If they minimize ("I've failed before") → explore what they actually did, not the outcome.
 
 DOMAIN 9 — READINESS AND AMBIVALENCE: Where they are right now

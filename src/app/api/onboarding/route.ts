@@ -23,6 +23,29 @@ import {
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
 if (!OPENAI_API_KEY) console.warn('[onboarding] Missing OPENAI_API_KEY')
 
+const FRUSTRATION_PHRASES = /\b(already (answered|discussed|said|covered|told you)|i (said|told you) (that|this|already)|you (already |just )asked (me |that|about)|we (already |just )(covered|went over|discussed|talked about)|i just (said|told you)|same question|i already (said|told|answered|mentioned|covered)|you already asked|we already (talked|went over|covered|discussed))\b/i
+
+/**
+ * Maps the fine-grained hint-domain keys (returned by nextDomainToFocus) to
+ * their corresponding top-level field on DomainCoverage. Used to force-defer a
+ * domain when the user signals frustration with repeated probing.
+ *
+ * 'safety' and 'opening' are intentionally absent — safety cannot be dismissed
+ * by user frustration and opening is trivially complete after turn 1.
+ */
+const HINT_DOMAIN_TO_COVERAGE_FIELD: Partial<Record<string, keyof DomainCoverage>> = {
+  currentUse:      'currentUse',
+  function:        'currentUse',    // sub-area of currentUse
+  emotionalDrivers: 'riskMap',
+  costs:           'riskMap',
+  goals:           'goals',
+  identity:        'coachLens',
+  protectionMap:   'protectionMap',
+  coachLens:       'coachLens',
+  readiness:       'readiness',
+  communication:   'communication',
+}
+
 // Onboarding intake: ITC-first, conversation-led, domain-aware
 const SYSTEM_PROMPT_V1 = [
   ITC_MASTER_PROMPT,
@@ -233,21 +256,21 @@ function lastTurnWasOfferAndUserSaidYes(history: Msg[]) {
 function nextIntakeQuestion(history: Msg[], latest: string): string {
   const blob = conversationText(history, latest).toLowerCase()
   if (!hasGoal(blob)) {
-    return 'What feels most important to you right now—cutting back, stopping, or deciding later what change looks like?'
+    return 'What are you hoping for — what would a good outcome actually look like for you?'
   }
   if (!mentionsFrequency(blob)) {
-    return 'To get the fit right, what and when do you tend to use—how often, and about how much on a typical day or week?'
+    return 'To get the fit right, what does a typical week look like — how often does this tend to happen, and what does it look like?'
   }
   if (!mentionsTriggers(blob)) {
-    return 'What usually sets off the urge—stress, certain people/places, feelings, or particular times of day?'
+    return 'What usually makes it harder — particular situations, feelings, or certain times?'
   }
   if (!mentionsConsequences(blob)) {
-    return 'What impacts have you noticed lately—on sleep, mood, health, relationships, work, money, or anything legal?'
+    return 'What have you noticed getting harder because of this — anything that has shifted?'
   }
   if (!mentionsPositiveProtection(blob)) {
-    return 'Who or what helps even a little—people, routines, meetings, or anything you lean on when things are hard?'
+    return 'Who or what helps, even a little — any people, routines, or things you lean on when it gets hard?'
   }
-  return 'Before we switch to skills, what would “a good outcome” from this change look like in your day-to-day life?'
+  return 'Before we switch to skills, what would a good outcome from this actually feel like in your day-to-day life?'
 }
 
 function skillsIntercept(coverage: DomainCoverage, history: Msg[], latest: string) {
@@ -297,13 +320,13 @@ Example stems: "What's been going on that brought you here?" or "What made this 
 Do not yet ask about patterns, triggers, solutions, or what would help.`,
 
   currentUse: `CURRENT ONBOARDING FOCUS: Behavior Pattern
-Goal: Understand what they are using, when, how often, and roughly how much — in their own words.
-Example stems: "What does a typical week look like for you?" or "When you do drink, roughly how much tends to happen?"
+Goal: Understand what they are doing or struggling with, when, how often, and roughly what it looks like — in their own words.
+Example stems: "What does a typical week look like for you?" or "How often does this tend to happen, and what does it usually look like when it does?"
 Do not ask what would help or what might change. Gather information only.`,
 
   function: `CURRENT ONBOARDING FOCUS: Function (What does it give them?)
 Goal: Understand what the behavior does for them in the short term — relief, connection, escape, routine, reward.
-Example stems: "What does drinking do for you in the moment?" or "What does it give you that's hard to get another way?"
+Example stems: "What does this do for you in the moment?" or "What does it give you that's hard to get another way?"
 Do not name the function for them. Do not move to costs yet. Do not ask what they could do instead.`,
 
   emotionalDrivers: `CURRENT ONBOARDING FOCUS: Emotional Drivers
@@ -313,7 +336,7 @@ Explore without labeling. Do not suggest emotions. Do not move to coping strateg
 
   costs: `CURRENT ONBOARDING FOCUS: Costs and Consequences
 Goal: Let them name what concerns or bothers them — do not list impacts for them.
-Example stems: "What, if anything, has felt harder because of your drinking?" or "Has anything shifted lately that you've noticed?"
+Example stems: "What, if anything, has felt harder or changed because of this?" or "Has anything shifted lately that you've noticed?"
 Sit with ambivalence. Do not reassure or suggest. Do not ask what would help.`,
 
   goals: `CURRENT ONBOARDING FOCUS: Motivation and Goals
@@ -333,7 +356,7 @@ Do not frame absence of support as a deficit. Accept "nothing" without pushing. 
 
   coachLens: `CURRENT ONBOARDING FOCUS: Strengths and Prior Navigation
 Goal: Surface what they have already tried, what capacity they have, what they've managed before — how they handle difficult decisions and impulses.
-Example stems: "Have you gotten through a stretch without drinking before, even briefly? What made that possible?" or "When an urge hits, what tends to happen — do you usually go with it or find yourself pausing?"
+Example stems: "Have you had a stretch where things went better — even briefly? What made that possible?" or "When the urge or pull toward this hits, what tends to happen — do you usually go with it or find yourself pausing?"
 Do not praise or cheerlead. If they minimize a past effort, explore what they actually did — not just the outcome.`,
 
   readiness: `CURRENT ONBOARDING FOCUS: Readiness and Ambivalence
@@ -351,6 +374,14 @@ Goal: Briefly and warmly check in on any safety-relevant areas that haven't come
 Example stems: "Before we go further, I want to check in on one thing — is there anything going on physically or safety-wise that I should know about?" or "Sometimes when people are dealing with this kind of thing, there are moments that feel really unsafe. Has anything like that been happening?"
 Keep it brief. One question only. Do not dramatize. If nothing concerning arises, move on.`,
 }
+
+const FRUSTRATION_REPAIR_ADDITION = `
+LOOP REPAIR REQUIRED: The user has signaled they already provided this information.
+— Do NOT ask about this domain again — not even with different wording.
+— Mark this domain as covered for now and move on.
+— Respond with one of: (a) briefly acknowledge what you've heard on this topic and shift to a genuinely new domain, (b) offer a short recap of what you've gathered so far and ask what would be useful to explore next, or (c) repair the loop explicitly: "I realize I've circled back to that — let me move on."
+— Do NOT continue normal intake behavior as if nothing happened.
+— Do NOT ask another question about the same domain in this turn.`
 
 const VAGUE_LOOP_ADDITION = `
 VAGUE LOOP DETECTED: The user has given uncertain or deflecting answers more than once.
@@ -385,11 +416,12 @@ function buildRecentQuestionsWarning(history: Msg[]): string {
  * is currently in focus and what a useful next question looks like.
  * Injected as a system message immediately before the user's latest input.
  */
-function buildDomainHint(domainKey: string, vagueCount: number, history: Msg[]): string {
+function buildDomainHint(domainKey: string, vagueCount: number, history: Msg[], frustrationDetected = false): string {
   const base = DOMAIN_HINTS[domainKey] ?? DOMAIN_HINTS['communication']
   const repetitionWarning = buildRecentQuestionsWarning(history)
   const vagueAddition = vagueCount >= 2 ? VAGUE_LOOP_ADDITION : ''
-  return (base + repetitionWarning + vagueAddition).trim()
+  const frustrationAddition = frustrationDetected ? FRUSTRATION_REPAIR_ADDITION : ''
+  return (base + repetitionWarning + vagueAddition + frustrationAddition).trim()
 }
 
 /* Fallback if OpenAI ever returns empty */
@@ -399,7 +431,7 @@ function buildFallback(input: string) {
     return 'What would you like me to understand about you so I can tailor things to what you need?'
   }
   if (t.length < 40) {
-    return `It sounds like this is really on your mind. Could you share a bit more about what’s been happening today so I can understand better?`
+    return `Something brought you here today. Could you share a bit more about what’s been going on so I can understand better?`
   }
   return `I want to make sure I have this right — ${t.slice(0, 140)}… What would you most like help with as we get started?`
 }
@@ -505,7 +537,22 @@ export async function POST(req: NextRequest) {
     // Compute coverage-led state — replaces old deriveCurrentSegment / hasEnoughSignal
     const coverage = computeDomainCoverage(prior, input)
     const userTurns = prior.filter(m => m.role === 'user').length
-    const activeDomain = nextDomainToFocus(coverage, userTurns)
+    let activeDomain = nextDomainToFocus(coverage, userTurns)
+
+    // Frustration structural deferral: when the user signals they already answered a
+    // domain, force that domain to 'deferred' in a working copy of coverage and
+    // re-derive the next domain. This is a state change — not just a prompt hint —
+    // so the same domain is not re-probed on the next turn either.
+    const frustrationDetected = FRUSTRATION_PHRASES.test(input || '')
+    let workingCoverage = coverage
+    if (frustrationDetected) {
+      const field = HINT_DOMAIN_TO_COVERAGE_FIELD[activeDomain]
+      if (field && workingCoverage[field] !== 'complete') {
+        workingCoverage = { ...coverage, [field]: 'deferred' as const }
+        activeDomain = nextDomainToFocus(workingCoverage, userTurns)
+      }
+    }
+
     const currentSegment = domainToSegmentNumber(activeDomain)
 
     // Post-overdose branch: check early — before summary checks — so the
@@ -623,7 +670,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Coverage complete: generate spoken summary, then offer written version
-    const readyToOffer = shouldOfferSummaryNow(coverage, prior)
+    // Uses workingCoverage so frustration-deferred domains don't block unnecessarily.
+    const readyToOffer = shouldOfferSummaryNow(workingCoverage, prior)
     if (
       readyToOffer &&
       !hasOfferedSummaryRecently(prior) &&
@@ -651,7 +699,7 @@ export async function POST(req: NextRequest) {
 
     // Regular onboarding turn — inject per-turn domain focus hint before user message
     const vagueCount = countRecentVague(prior, input)
-    const domainHint = buildDomainHint(activeDomain, vagueCount, prior)
+    const domainHint = buildDomainHint(activeDomain, vagueCount, prior, frustrationDetected)
     const convo: Msg[] = [
       ...base,
       ...prior,

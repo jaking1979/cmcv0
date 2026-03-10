@@ -14,6 +14,9 @@ import {
   shouldOfferSummaryNow,
   nextDomainToFocus,
   domainToSegmentNumber,
+  mentionsPositiveProtection,
+  countPositiveProtectionSignals,
+  hasSustainTalk,
   type Msg,
 } from '../../src/server/onboarding/coverageModel'
 
@@ -108,9 +111,12 @@ describe('computeDomainCoverage()', () => {
       const cov = computeDomainCoverage(history, latest)
       expect(cov.ambivalence_clearly_present).toBe(true)
     })
-    it('marks readiness as complete when both sides are present', () => {
+    it('marks readiness as partial (not complete) when turn count < 10', () => {
+      // With < 10 user turns, ambivalence detection alone sets readiness to 'partial',
+      // not 'complete'. The conversation needs room (>= 10 turns) to have explored
+      // both sides before readiness is considered complete.
       const cov = computeDomainCoverage(history, latest)
-      expect(cov.readiness).toBe('complete')
+      expect(cov.readiness).toBe('partial')
     })
   })
 
@@ -284,15 +290,16 @@ describe('hasMinimumRequiredCoverage()', () => {
   })
 
   it('returns true when all required minimums are met', () => {
+    // protectionMap and communication must be 'complete' or 'deferred' — 'partial' is not enough
     const cov = {
       opening: 'complete' as const,
       currentUse: 'complete' as const,
       goals: 'partial' as const,
       readiness: 'unseen' as const,
       riskMap: 'partial' as const,
-      protectionMap: 'partial' as const,
+      protectionMap: 'complete' as const,
       coachLens: 'partial' as const,
-      communication: 'partial' as const,
+      communication: 'complete' as const,
       safety: 'screened_low' as const,
       ambivalence_clearly_present: false,
     }
@@ -344,6 +351,7 @@ describe('shouldOfferSummaryNow()', () => {
   })
 
   it('does NOT require segment >= 9 — only coverage', () => {
+    // protectionMap and communication must be 'complete' or 'deferred' for the gate to pass
     const history: Msg[] = Array(8).fill(null).flatMap((_, i) => [
       userMsg(`message ${i}`),
       assistantMsg(`response ${i}`),
@@ -354,9 +362,9 @@ describe('shouldOfferSummaryNow()', () => {
       goals: 'partial' as const,
       readiness: 'unseen' as const,
       riskMap: 'partial' as const,
-      protectionMap: 'partial' as const,
+      protectionMap: 'complete' as const,
       coachLens: 'partial' as const,
-      communication: 'partial' as const,
+      communication: 'complete' as const,
       safety: 'screened_low' as const,
       ambivalence_clearly_present: false,
     }
@@ -422,5 +430,204 @@ describe('domainToSegmentNumber()', () => {
   it('maps communication and safety to 9', () => {
     expect(domainToSegmentNumber('communication')).toBe(9)
     expect(domainToSegmentNumber('safety')).toBe(9)
+  })
+})
+
+// ─── B. Communication — new gate tests ───────────────────────────────────────
+
+describe('Communication domain (B)', () => {
+  it('partial blocks hasMinimumRequiredCoverage', () => {
+    const cov = {
+      opening: 'complete' as const,
+      currentUse: 'complete' as const,
+      goals: 'partial' as const,
+      readiness: 'unseen' as const,
+      riskMap: 'partial' as const,
+      protectionMap: 'complete' as const,
+      coachLens: 'partial' as const,
+      communication: 'partial' as const,
+      safety: 'screened_low' as const,
+      ambivalence_clearly_present: false,
+    }
+    expect(hasMinimumRequiredCoverage(cov)).toBe(false)
+  })
+
+  it('deferred passes hasMinimumRequiredCoverage', () => {
+    const cov = {
+      opening: 'complete' as const,
+      currentUse: 'complete' as const,
+      goals: 'partial' as const,
+      readiness: 'unseen' as const,
+      riskMap: 'partial' as const,
+      protectionMap: 'complete' as const,
+      coachLens: 'partial' as const,
+      communication: 'deferred' as const,
+      safety: 'screened_low' as const,
+      ambivalence_clearly_present: false,
+    }
+    expect(hasMinimumRequiredCoverage(cov)).toBe(true)
+  })
+
+  it('"I don\'t know" at turn 1 produces partial (not yet deferred)', () => {
+    const history: Msg[] = [userMsg("I drink daily.")]
+    const cov = computeDomainCoverage(history, "I don't know what kind of support I like.")
+    expect(cov.communication).toBe('partial')
+  })
+
+  it('"I don\'t know" with no real style signal deferred at turn 8+', () => {
+    // Build a history with 8 user turns and no communication style signal at all
+    const history: Msg[] = Array(8).fill(null).flatMap((_, i) => [
+      userMsg(`message ${i}`),
+      assistantMsg(`response ${i}`),
+    ])
+    const cov = computeDomainCoverage(history, "I'm not sure how I like to be supported.")
+    // "not sure" + no commAnyPresent + userTurns >= 8 → 'deferred'
+    expect(cov.communication).toBe('deferred')
+  })
+})
+
+// ─── D. Protection map — new gate tests ──────────────────────────────────────
+
+describe('Protection map (D)', () => {
+  it('bare "my family" alone → mentionsPositiveProtection: false', () => {
+    expect(mentionsPositiveProtection('my family')).toBe(false)
+  })
+
+  it('"my family" alone → mentionsPositiveProtection: false', () => {
+    expect(mentionsPositiveProtection('I have my family and that is it.')).toBe(false)
+  })
+
+  it('"I can count on my family" → mentionsPositiveProtection: true', () => {
+    expect(mentionsPositiveProtection('I can count on my family to be there.')).toBe(true)
+  })
+
+  it('"my family helps me" → mentionsPositiveProtection: true', () => {
+    expect(mentionsPositiveProtection('my family helps me stay grounded')).toBe(true)
+  })
+
+  it('"my kids keep me going" → countPositiveProtectionSignals category 1 fires', () => {
+    expect(countPositiveProtectionSignals('my kids keep me going')).toBeGreaterThanOrEqual(1)
+  })
+
+  it('bare "my family is around" with no other signal → protectionMap not complete', () => {
+    // No prior-success language, no positive verb — bare person mention only
+    const history: Msg[] = [
+      userMsg("I drink every night."),
+      assistantMsg("What helps, even a little?"),
+      userMsg("My family is around. Nothing really."),
+    ]
+    const cov = computeDomainCoverage(history, "I just deal with it.")
+    // Bare "my family is around" with no positive verb or prior-success signal
+    // should be 'unseen' or at most 'partial', never 'complete'
+    expect(cov.protectionMap).not.toBe('complete')
+  })
+
+  it('partial protectionMap blocks hasMinimumRequiredCoverage', () => {
+    const cov = {
+      opening: 'complete' as const,
+      currentUse: 'complete' as const,
+      goals: 'partial' as const,
+      readiness: 'unseen' as const,
+      riskMap: 'partial' as const,
+      protectionMap: 'partial' as const,
+      coachLens: 'partial' as const,
+      communication: 'complete' as const,
+      safety: 'screened_low' as const,
+      ambivalence_clearly_present: false,
+    }
+    expect(hasMinimumRequiredCoverage(cov)).toBe(false)
+  })
+
+  it('Scenario 1 still produces protectionMap: complete (regression guard)', () => {
+    // "my kids keep me going" + "my morning runs help" — both verb-anchored
+    const history: Msg[] = [
+      userMsg('I drink alcohol every day, usually 4-5 beers in the evening after work.'),
+      assistantMsg('What does it give you in those moments?'),
+      userMsg("It helps me relax and wind down. Work is really stressful and I feel anxious all day."),
+      assistantMsg('What tends to happen with your drinking when things are especially hard at work?'),
+      userMsg("I drink more. Sometimes I black out on weekends. My wife is worried and my health is suffering."),
+      assistantMsg('What would you like things to look like differently?'),
+      userMsg("I want to cut back to a couple drinks, not quit entirely. My kids keep me going and my morning runs help."),
+    ]
+    const cov = computeDomainCoverage(history, "I've cut back before and it worked.")
+    expect(cov.protectionMap).toBe('complete')
+  })
+})
+
+// ─── E. Ambivalence / readiness gating — new tests ───────────────────────────
+
+describe('Ambivalence / readiness gating (E)', () => {
+  it('ambivalence at low turn count → readiness: partial, not complete', () => {
+    const history: Msg[] = [
+      userMsg("I want to quit but I also like drinking. Part of me wants to keep going."),
+      assistantMsg("Both sides sound real."),
+      userMsg("I've decided I need to stop but I can't imagine not drinking."),
+    ]
+    const cov = computeDomainCoverage(history, "I'm not ready to give it up fully.")
+    expect(cov.ambivalence_clearly_present).toBe(true)
+    expect(cov.readiness).toBe('partial')
+  })
+
+  it('readiness partial + ambivalence present → hasMinimumRequiredCoverage: false', () => {
+    const cov = {
+      opening: 'complete' as const,
+      currentUse: 'complete' as const,
+      goals: 'partial' as const,
+      readiness: 'partial' as const,
+      riskMap: 'partial' as const,
+      protectionMap: 'complete' as const,
+      coachLens: 'partial' as const,
+      communication: 'complete' as const,
+      safety: 'screened_low' as const,
+      ambivalence_clearly_present: true,
+    }
+    expect(hasMinimumRequiredCoverage(cov)).toBe(false)
+  })
+
+  it('readiness deferred + ambivalence present → hasMinimumRequiredCoverage: true', () => {
+    const cov = {
+      opening: 'complete' as const,
+      currentUse: 'complete' as const,
+      goals: 'partial' as const,
+      readiness: 'deferred' as const,
+      riskMap: 'partial' as const,
+      protectionMap: 'complete' as const,
+      coachLens: 'partial' as const,
+      communication: 'complete' as const,
+      safety: 'screened_low' as const,
+      ambivalence_clearly_present: true,
+    }
+    expect(hasMinimumRequiredCoverage(cov)).toBe(true)
+  })
+})
+
+// ─── hasSustainTalk false-positive regressions ────────────────────────────────
+
+describe('hasSustainTalk() false-positive regressions', () => {
+  it('"exercise helps me" → hasSustainTalk: false', () => {
+    expect(hasSustainTalk('exercise helps me feel better')).toBe(false)
+  })
+
+  it('"working out helps me" → hasSustainTalk: false', () => {
+    expect(hasSustainTalk('working out helps me cope with stress')).toBe(false)
+  })
+
+  it('"my routine helps me" → hasSustainTalk: false', () => {
+    expect(hasSustainTalk('my routine helps me stay consistent')).toBe(false)
+  })
+
+  it('exercise user with change talk + "helps me" → ambivalence_clearly_present: false', () => {
+    // Change talk present, but "exercise helps me" should not fire sustain talk
+    const history: Msg[] = [
+      userMsg("I want to exercise more. I've decided to make a change."),
+      assistantMsg("What would that look like?"),
+      userMsg("I need to get active. Exercise helps me feel better overall."),
+    ]
+    const cov = computeDomainCoverage(history, "I'm ready to start going to the gym.")
+    expect(cov.ambivalence_clearly_present).toBe(false)
+  })
+
+  it('genuine sustain talk still fires', () => {
+    expect(hasSustainTalk("I'm not ready to stop, I like it and can't imagine quitting")).toBe(true)
   })
 })

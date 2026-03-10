@@ -12,11 +12,21 @@ export type Msg = { role: 'user' | 'assistant' | 'system'; content: string }
 
 export function hasGoal(text: string) {
   const t = (text || '').toLowerCase()
-  return /(quit|stop|cut\s*back|reduce|abstinen|moderate|change my (drinking|use)|stay sober|be sober|dry january|dry\s+jan)/.test(t)
+  // Substance goals (original)
+  if (/(quit|stop|cut\s*back|reduce|abstinen|moderate|change my (drinking|use)|stay sober|be sober|dry january|dry\s+jan)/.test(t)) return true
+  // Exercise / activity goals
+  if (/(exercise (more|regularly|consistently|better)|work\s*out\s*(more|regularly|consistently)|get\s*(fit|in\s*shape|more\s*active|stronger|healthier)|be\s*more\s*active|start\s*(exercising|running|going\s*to\s*the\s*gym|working\s*out)|feel\s*(stronger|better|healthier|fitter)|look\s*(better|fitter)|build\s*(muscle|strength|fitness))/.test(t)) return true
+  // Sleep goals
+  if (/(sleep\s*(better|more|longer)|fix\s*my\s*sleep|improve\s*my\s*sleep)/.test(t)) return true
+  // Eating / diet goals
+  if (/(eat\s*(better|healthier|less|more\s*consistently)|change\s*my\s*(eating|diet)|lose\s*weight|improve\s*my\s*(diet|nutrition))/.test(t)) return true
+  // General behavior-change goals
+  if (/(change\s*my\s*habits?|work\s*on\s*(myself|this|it)|get\s*back\s*on\s*track|do\s*(better|more|differently|something\s*about))/.test(t)) return true
+  return false
 }
 export function mentionsFrequency(text: string) {
   const t = (text || '').toLowerCase()
-  return /(every day|daily|nightly|weekend|x\/wk|times a (day|week)|\b\d+\s*(drinks?|times?)\b|morning|evening|night)/.test(t)
+  return /(every day|daily|nightly|weekend|x\/wk|times a (day|week)|\b\d+\s*(drinks?|times?|steps?|miles?|km|minutes?|min\b|hours?)\b|\b\d+k\s*steps|morning|evening|night|once a (day|week|month)|twice a (week|day)|a few times|rarely|never exercise|little (activity|exercise|movement)|almost (never|nothing)|not (much|really)|barely move|don'?t (exercise|work out|move much)|little to no)/.test(t)
 }
 export function mentionsTriggers(text: string) {
   const t = (text || '').toLowerCase()
@@ -27,17 +37,29 @@ export function mentionsConsequences(text: string) {
   return /(hangover|withdrawal|dope\s*sick|tolerance|black(out|ed)|sleep|health|relationship|partner|kids?|job|work|boss|late|promotion|legal|court|probation|money|broke|finances?)/.test(t)
 }
 
-/** Positive protective factors — people, routines, or past successes explicitly framed as helpful. */
+/** Positive protective factors — people, routines, or past successes explicitly framed as helpful.
+ *
+ * Bare person mentions ("my family", "my partner") are intentionally excluded.
+ * A person only counts as a protective factor when the statement explicitly frames
+ * them as helpful (e.g. "my family helps me", "I lean on my partner", "I can count on
+ * my friend"). This prevents conflict mentions ("my partner and I fight") or neutral
+ * mentions from inflating the protection map.
+ */
 export function mentionsPositiveProtection(text: string) {
   const t = (text || '').toLowerCase()
-  return /(helps? me|helped me|keeps? me|kept me|grounds? me|calms? me|steadies me|i lean on|i can count on|i have my|my (kids?|family|partner|wife|husband|mom|dad|friend|sponsor|therapist|doctor|coach)|routine (helps?|keeps?|grounds?)|working out|exercise helps?|gym helps?|meeting helps?|talking to|got through|made it through|better when|good stretch|sober (for|stretch|period)|worked before|what worked|has worked|makes it easier|anchor|support (system|network)|i'm not alone|someone i trust|people who|someone who cares)/.test(t)
+  return /(helps? me|helped me|keeps? me|kept me|grounds? me|calms? me|steadies me|i lean on|i can count on|routine (helps?|keeps?|grounds?)|working out|exercise helps?|gym helps?|meeting helps?|talking to|got through|made it through|better when|good stretch|sober (for|stretch|period)|worked before|what worked|has worked|makes it easier|anchor|support (system|network)|i'm not alone|someone i trust|people who|someone who cares)/.test(t)
 }
 
-/** Count distinct positive-protection signal categories present in text. */
+/** Count distinct positive-protection signal categories present in text.
+ *
+ * Category 1 uses only verb-anchored patterns (helps me, keeps me going, I lean on,
+ * I can count on, someone I trust). Bare person mentions ("my family", "my partner")
+ * are excluded — they may represent conflict or isolation rather than support.
+ */
 export function countPositiveProtectionSignals(text: string): number {
   const t = text.toLowerCase()
   let count = 0
-  if (/(helps? me|helped me|my (kids?|family|partner|wife|husband|mom|dad|friend)|i lean on|i can count on|someone i trust)/.test(t)) count++
+  if (/(helps? me|helped me|keeps? me|kept me|grounds? me|calms? me|steadies me|i lean on|i can count on|someone i trust)/.test(t)) count++
   if (/(routine|working out|exercise|gym|walk|meeting|yoga|meditation|sober (for|stretch)|program)/.test(t)) count++
   if (/(got through|made it through|better when|good stretch|worked before|what worked|has worked|made it)/.test(t)) count++
   if (/(therapist|therapy|counselor|doctor|treatment|sponsor|aa\b|na\b|coach)/.test(t)) count++
@@ -59,13 +81,22 @@ export function hasChangeTalk(text: string) {
 /** User expressing pull away from change or reasons to stay the same. */
 export function hasSustainTalk(text: string) {
   const t = (text || '').toLowerCase()
-  return /(not ready|don't want to stop|don't want to quit|part of me (doesn'?t|don'?t want|wants to keep)|can'?t imagine (not|without)|i'?d miss|i need it|i like (it|drinking|using)|it helps me|can'?t (stop|quit|give it up)|not sure (if|whether|i want to)|still want|don'?t think i can|it'?s not that bad|works for me|not a problem|i'?m fine|others have it worse|everyone does it|it'?s just|i'?m in control)/.test(t)
+  // "it helps me" removed — it fires as a false positive in non-substance contexts
+  // (e.g. "exercise helps me") and is already covered by mentionsFunction() for the
+  // correct domain. Sustain talk requires an explicit resistance or ambivalence signal.
+  return /(not ready|don't want to stop|don't want to quit|part of me (doesn'?t|don'?t want|wants to keep|likes|enjoys)|can'?t imagine (not|without)|i'?d miss|i need it|i like (it|drinking|using)|can'?t (stop|quit|give it up)|not sure (if|whether|i want to)|still want|don'?t think i can|it'?s not that bad|works for me|not a problem|i'?m fine|others have it worse|everyone does it|it'?s just|i'?m in control)/.test(t)
 }
 
 /** True if substance or behavior was explicitly named. */
 export function mentionsSubstance(text: string) {
   const t = (text || '').toLowerCase()
   return /(drink|drinking|alcohol|wine|beer|spirits|smoke|smoking|weed|cannabis|marijuana|cocaine|coke|meth\b|methamphetamine|pill|pills|opioid|opioids|heroin|fentanyl|benzo|xanax|oxy\b|oxycontin|adderall|stimulant|drug|substance|using|i use|i've been using)/.test(t)
+}
+
+/** Non-substance behavior categories (exercise, sleep, eating, screen use, etc.) */
+export function mentionsNonSubstanceBehavior(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(\bexercise\b|workout|work\s*out|working\s*out|\bgym\b|\brunning\b|\bjog(ging)?\b|\bwalking\b|\bcycling\b|\bbiking?\b|\bswimming\b|\byoga\b|\bpilates\b|\bcrossfit\b|weight\s*(lift|train)|strength\s*train|physical\s*activity|get\s*(fit|in\s*shape|more\s*active|moving|stronger)|be\s*more\s*active|more\s*active|sedentary|start\s*(exercising|running|going\s*to\s*the\s*gym|working\s*out)|\bfitness\b|sleep\s*(better|more|less|hygiene|routine)|\binsomnia\b|can'?t\s*sleep|eat\s*(better|healthier|less)|\bbinge\s*(eating)?\b|\bovereat\b|screen\s*time|\bvaping?\b|\bgambling\b|social\s*media\s*use|phone\s*use)/.test(t)
 }
 export function mentionsFunction(text: string) {
   const t = (text || '').toLowerCase()
@@ -232,13 +263,15 @@ export function computeDomainCoverage(history: Msg[], latest: string): DomainCov
   // opening — complete after first user message
   const opening: DomainStatus = userTurns >= 1 ? 'complete' : 'unseen'
 
-  // currentUse — partial: substance named; complete: substance + (frequency OR function OR emotional)
+  // currentUse — partial: any target behavior named; complete: behavior + (frequency OR function OR emotional)
+  // Covers substance use AND non-substance behaviors (exercise, sleep, eating, etc.)
   const substancePresent = mentionsSubstance(allUserText)
+  const behaviorPresent  = substancePresent || mentionsNonSubstanceBehavior(allUserText)
   const frequencyPresent = mentionsFrequency(allUserText)
   const functionPresent  = mentionsFunction(allUserText)
   const emotionalPresent = mentionsEmotionalDrivers(allUserText)
   let currentUse: DomainStatus = 'unseen'
-  if (substancePresent) {
+  if (behaviorPresent) {
     currentUse = (frequencyPresent || functionPresent || emotionalPresent) ? 'complete' : 'partial'
   }
   if (currentUse === 'partial' && userTurns >= 8) currentUse = 'deferred'
@@ -253,15 +286,18 @@ export function computeDomainCoverage(history: Msg[], latest: string): DomainCov
   }
   if (goals === 'partial' && userTurns >= 10) goals = 'deferred'
 
-  // readiness — partial: any ambivalence signal; complete: both sides named
+  // readiness — partial: any ambivalence or readiness signal; complete: both sides present
+  // AND enough turns for both sides to have been explored (>= 10 user turns).
+  // Detecting ambivalence alone does NOT auto-complete readiness — it requires the
+  // conversation to have had room for both sides to surface and be reflected.
   const changeTalkPresent  = hasChangeTalk(allUserText)
   const sustainTalkPresent = hasSustainTalk(allUserText)
   const ambivalence_clearly_present = changeTalkPresent && sustainTalkPresent
   const anyReadinessSignal = mentionsReadiness(allUserText) || changeTalkPresent || sustainTalkPresent
   let readiness: DomainStatus = 'unseen'
-  if (ambivalence_clearly_present) {
+  if (ambivalence_clearly_present && userTurns >= 10) {
     readiness = 'complete'
-  } else if (anyReadinessSignal) {
+  } else if (ambivalence_clearly_present || anyReadinessSignal) {
     readiness = 'partial'
   }
   if (readiness === 'partial' && userTurns >= 12 && !ambivalence_clearly_present) readiness = 'deferred'
@@ -302,7 +338,10 @@ export function computeDomainCoverage(history: Msg[], latest: string): DomainCov
   }
   if (coachLens === 'partial' && userTurns >= 12) coachLens = 'deferred'
 
-  // communication — partial: any style signal or "I don't know"; complete: usable style signal
+  // communication — partial: any style signal or "I don't know"; complete: usable style signal.
+  // "I don't know" without a real style preference is promoted to 'deferred' early (turn 8+)
+  // rather than holding at 'partial' until turn 14. This prevents a hollow "I don't know"
+  // answer from permanently blocking the summary gate once a reasonable probe has happened.
   const commCompletePresent = mentionsCommunicationStyleComplete(allUserText)
   const commAnyPresent      = mentionsCommunicationStyle(allUserText)
   const iDontKnowStyle      = /(don'?t know (how|what)|not sure (how|what)|hard to say|whatever works|i guess)/.test(allUserText.toLowerCase())
@@ -312,7 +351,9 @@ export function computeDomainCoverage(history: Msg[], latest: string): DomainCov
   } else if (commAnyPresent || iDontKnowStyle) {
     communication = 'partial'
   }
-  if (communication === 'partial' && userTurns >= 14) communication = 'deferred'
+  if (communication === 'partial' && (userTurns >= 14 || (iDontKnowStyle && !commAnyPresent && userTurns >= 8))) {
+    communication = 'deferred'
+  }
 
   // safety — 4-state SafetyStatus
   const anySafetyTrigger = history
@@ -390,8 +431,16 @@ export function nextDomainToFocus(coverage: DomainCoverage, userTurns: number): 
 }
 
 /**
- * All required domains must have at least partial coverage before summary is
- * offered. Safety must be explicitly addressed (not unseen).
+ * All required domains must reach at least 'complete' or 'deferred' before the
+ * summary is offered. 'partial' is not enough for the three quality-critical domains:
+ *
+ * - protectionMap: partial means a thin or unverified mention; we need real signal
+ *   or an explicit deferral after probing.
+ * - communication: partial includes "I don't know" which is not an actionable style
+ *   signal; require a real preference or an explicit deferral after probing.
+ * - readiness (when ambivalence is present): ambivalence detected does not mean
+ *   ambivalence explored; require complete (both sides present + >= 10 turns) or
+ *   deferred before summary fires.
  */
 export function hasMinimumRequiredCoverage(coverage: DomainCoverage): boolean {
   const { currentUse, goals, riskMap, protectionMap, communication,
@@ -400,10 +449,10 @@ export function hasMinimumRequiredCoverage(coverage: DomainCoverage): boolean {
   if (currentUse !== 'complete') return false
   if (goals === 'unseen') return false
   if (riskMap === 'unseen') return false
-  if (protectionMap === 'unseen') return false
+  if (protectionMap === 'unseen' || protectionMap === 'partial') return false
   if (safety === 'unseen') return false
-  if (communication === 'unseen') return false
-  if (ambivalence_clearly_present && readiness === 'unseen') return false
+  if (communication === 'unseen' || communication === 'partial') return false
+  if (ambivalence_clearly_present && readiness !== 'complete' && readiness !== 'deferred') return false
 
   return true
 }
