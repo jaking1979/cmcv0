@@ -50,8 +50,9 @@ describe('SYSTEM_PROMPT_V1 composition', () => {
     expect(SYSTEM_PROMPT_V1).toContain('CRITICAL SAFETY AND SCOPE GUIDELINES')
   })
 
-  it('contains ONBOARDING_V1_PROMPT domain flow', () => {
+  it('contains ONBOARDING_V1_PROMPT 10-domain flow (not 11)', () => {
     expect(SYSTEM_PROMPT_V1).toContain('10-DOMAIN FLOW')
+    expect(SYSTEM_PROMPT_V1).not.toContain('11-DOMAIN FLOW')
   })
 
   // ─── Forbidden phrases — legacy instructions that were removed ─────────────
@@ -87,8 +88,15 @@ describe('ONBOARDING_V1_PROMPT hard guardrails', () => {
     expect(ONBOARDING_V1_PROMPT).toMatch(/No advice, skills, or coping strategies during onboarding/i)
   })
 
-  it('requires reflecting before asking', () => {
-    expect(ONBOARDING_V1_PROMPT).toMatch(/Reflect before you ask/i)
+  it('includes REFLECTION DISCIPLINE with banned openers', () => {
+    expect(ONBOARDING_V1_PROMPT).toContain('REFLECTION DISCIPLINE')
+    expect(ONBOARDING_V1_PROMPT).toMatch(/BANNED OPENERS/i)
+  })
+
+  it('includes TURN SHAPE VARIETY section', () => {
+    expect(ONBOARDING_V1_PROMPT).toContain('TURN SHAPE VARIETY')
+    expect(ONBOARDING_V1_PROMPT).toMatch(/Reflection only/i)
+    expect(ONBOARDING_V1_PROMPT).toMatch(/Recap \+ redirect/i)
   })
 
   it('enforces response word limit', () => {
@@ -106,6 +114,21 @@ describe('ONBOARDING_V1_PROMPT hard guardrails', () => {
 
   it('includes safety interrupt instructions', () => {
     expect(ONBOARDING_V1_PROMPT).toContain('SAFETY INTERRUPT')
+  })
+
+  it('COMPLETION REQUIREMENT includes all 9 required signals (including safety)', () => {
+    expect(ONBOARDING_V1_PROMPT).toContain('COMPLETION REQUIREMENT')
+    // Protection map requires concrete positive framing — not just a mention
+    expect(ONBOARDING_V1_PROMPT).toMatch(/framed as helpful/i)
+    // Communication style requires usable signal — not just "I don't know"
+    expect(ONBOARDING_V1_PROMPT).toMatch(/not just.*I don.?t know/i)
+    // Safety must be explicitly included in completion requirements
+    expect(ONBOARDING_V1_PROMPT).toMatch(/Safety.*acute risk/i)
+  })
+
+  it('Emotional Drivers are folded into Domain 2 (not a separate Domain 3.5)', () => {
+    expect(ONBOARDING_V1_PROMPT).toMatch(/DOMAIN 2.*EMOTIONAL DRIVERS/i)
+    expect(ONBOARDING_V1_PROMPT).not.toContain('DOMAIN 3.5')
   })
 })
 

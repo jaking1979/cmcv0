@@ -198,21 +198,41 @@ export function inferSegmentCoverage(transcript: string): SegmentCoverage {
     /good picture|accurate|first pass|starting point|direct|practical|reflective|gentle|prefer.*support|feedback style/,
   ])
 
+  const safetySignal = signal([
+    /suicid|overdose|withdrawal|hurt (myself|yourself)|not safe|in danger|dv|domestic/,
+    /emergency|crisis|safe (right now|at home)|concerned about safety/,
+  ])
+
+  // riskMap combines emotional function + costs + emotional drivers
+  const riskMapSignal: SegmentSignalLevel = (() => {
+    const matches = [seg3, seg4].filter(s => s !== 'none').length
+    if (matches >= 2) return 'high'
+    if (matches >= 1) return 'medium'
+    return 'none'
+  })()
+
+  // coachLens combines identity + strengths
+  const coachLensSignal: SegmentSignalLevel = (() => {
+    const matches = [seg6, seg8].filter(s => s !== 'none').length
+    if (matches >= 2) return 'high'
+    if (matches >= 1) return 'medium'
+    return 'none'
+  })()
+
   const all = [seg1, seg2, seg3, seg4, seg5, seg6, seg7, seg8, seg9, seg10]
   const highCount = all.filter(s => s === 'high').length
   const overall: ConfidenceLevel = highCount >= 7 ? 'high' : highCount >= 4 ? 'medium' : 'low'
 
   return {
-    seg1_opening: seg1,
-    seg2_behavior_pattern: seg2,
-    seg3_function: seg3,
-    seg4_costs: seg4,
-    seg5_motivation: seg5,
-    seg6_identity: seg6,
-    seg7_supports: seg7,
-    seg8_strengths: seg8,
-    seg9_readiness: seg9,
-    seg10_closing: seg10,
+    opening: seg1,
+    currentUse: seg2,
+    goals: seg5,
+    readiness: seg9,
+    riskMap: riskMapSignal,
+    protectionMap: seg7,
+    coachLens: coachLensSignal,
+    communication: seg10,
+    safety: safetySignal,
     segments_with_high_signal: highCount,
     overall_coverage: overall,
   }
@@ -268,6 +288,7 @@ export async function mapTranscriptToFormulation(
   const base = createEmptyFormulation(sessionId)
   const segmentCoverage = inferSegmentCoverage(transcript)
 
+  const cp = raw.coach_profiles ?? {}
   const formulation: OnboardingFormulation = {
     session_id: sessionId,
     timestamp: Date.now(),
@@ -277,19 +298,18 @@ export async function mapTranscriptToFormulation(
     risk_map: { ...base.risk_map, ...(raw.risk_map ?? {}) },
     protection_map: { ...base.protection_map, ...(raw.protection_map ?? {}) },
     coach_profiles: {
-      readiness:      { ...base.coach_profiles.readiness,      ...(raw.coach_profiles?.readiness      ?? {}) },
-      self_compassion:{ ...base.coach_profiles.self_compassion,...(raw.coach_profiles?.self_compassion ?? {}) },
-      distress:       { ...base.coach_profiles.distress,       ...(raw.coach_profiles?.distress       ?? {}) },
-      coping:         { ...base.coach_profiles.coping,         ...(raw.coach_profiles?.coping         ?? {}) },
-      substance:      { ...base.coach_profiles.substance,      ...(raw.coach_profiles?.substance      ?? {}) },
-      life_domains:   { ...base.coach_profiles.life_domains,   ...(raw.coach_profiles?.life_domains   ?? {}) },
+      mi:               { ...base.coach_profiles.mi,               ...(cp.mi               ?? {}) },
+      act:              { ...base.coach_profiles.act,              ...(cp.act              ?? {}) },
+      dbt:              { ...base.coach_profiles.dbt,              ...(cp.dbt              ?? {}) },
+      mindfulness:      { ...base.coach_profiles.mindfulness,      ...(cp.mindfulness      ?? {}) },
+      self_compassion:  { ...base.coach_profiles.self_compassion,  ...(cp.self_compassion  ?? {}) },
+      executive_support:{ ...base.coach_profiles.executive_support,...(cp.executive_support ?? {}) },
     },
     communication_profile: { ...base.communication_profile, ...(raw.communication_profile ?? {}) },
     safety_flags: { ...base.safety_flags, ...(raw.safety_flags ?? {}) },
     confidence_summary: {
       ...base.confidence_summary,
       ...(raw.confidence_summary ?? {}),
-      per_domain: { ...base.confidence_summary.per_domain, ...(raw.confidence_summary?.per_domain ?? {}) },
     },
     behavioral_dimensions: {
       ...base.behavioral_dimensions,
@@ -334,48 +354,46 @@ export async function mapTranscriptToProfile(
 ): Promise<OnboardingProfile> {
   const formulation = await mapTranscriptToFormulation(sessionId, transcript)
 
-  // Map new formulation schema back to legacy shape for existing consumers.
   function confToNum(c: string | undefined): number {
-    if (c === 'high') return 0.9
-    if (c === 'medium') return 0.6
+    if (c === 'high' || c === 'High') return 0.9
+    if (c === 'medium' || c === 'Medium') return 0.6
     return 0.3
   }
 
-  const readinessConf = confToNum(formulation.coach_profiles.readiness.confidence)
+  const miConf       = confToNum(formulation.coach_profiles.mi.confidence)
   const scConf       = confToNum(formulation.coach_profiles.self_compassion.confidence)
-  const copingConf   = confToNum(formulation.coach_profiles.coping.confidence)
-  const safetyConf   = confToNum(formulation.confidence_summary.per_domain.safety)
-  const useConf      = confToNum(formulation.confidence_summary.per_domain.current_use)
+  const execConf     = confToNum(formulation.coach_profiles.executive_support.confidence)
+  const safetyConf   = confToNum(formulation.confidence_summary.safety_flags)
+  const useConf      = confToNum(formulation.confidence_summary.current_use)
   const overallConf  = confToNum(formulation.confidence_summary.overall)
+
+  const substanceNames = (formulation.current_use.substances ?? []).map(s => s.name)
 
   return {
     sessionId,
     timestamp: formulation.timestamp,
     constructs: {
       selfCompassion: { ...formulation.coach_profiles.self_compassion },
-      urica: { stage: formulation.coach_profiles.readiness.stage ?? null, confidence: readinessConf },
-      kessler10: { distressLevel: null },
-      who5: { wellbeingLevel: null },
-      dbtWccl: { ...formulation.coach_profiles.coping },
-      copingSelfEfficacy: { ...formulation.coach_profiles.coping },
-      assist: {
-        substanceType: formulation.current_use.substances,
-        riskLevel: formulation.coach_profiles.substance.risk_level ?? null,
-      },
-      asi: { ...formulation.protection_map },
+      urica:          { stage: null, confidence: miConf },
+      kessler10:      { distressLevel: null },
+      who5:           { wellbeingLevel: null },
+      dbtWccl:        { ...formulation.coach_profiles.dbt },
+      copingSelfEfficacy: { ...formulation.coach_profiles.executive_support },
+      assist:         { substanceType: substanceNames, riskLevel: null },
+      asi:            { ...formulation.protection_map },
     },
     confidence: {
-      selfCompassion: scConf,
-      urica: readinessConf,
-      kessler10: 0,
-      who5: 0,
-      dbtWccl: copingConf,
-      copingSelfEfficacy: copingConf,
-      assist: useConf,
-      asi: safetyConf,
-      overall: overallConf,
+      selfCompassion:    scConf,
+      urica:             miConf,
+      kessler10:         0,
+      who5:              0,
+      dbtWccl:           confToNum(formulation.coach_profiles.dbt.confidence),
+      copingSelfEfficacy: execConf,
+      assist:            useConf,
+      asi:               safetyConf,
+      overall:           overallConf,
     },
-    rawTranscript: transcript,
+    rawTranscript:    transcript,
     redactedTranscript: transcript,
     formulation,
   }

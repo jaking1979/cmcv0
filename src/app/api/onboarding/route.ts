@@ -1,17 +1,12 @@
 import 'server-only'
 import { NextRequest } from 'next/server'
 import { ITC_MASTER_PROMPT, CRISIS_AND_SCOPE_GUARDRAILS, ONBOARDING_V1_PROMPT } from '@/server/ai/promptFragments'
+import { mapTranscriptToFormulation } from '@/server/ai/mapping/onboardingMapping'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
 if (!OPENAI_API_KEY) console.warn('[onboarding] Missing OPENAI_API_KEY')
 
 type Msg = { role: 'user'|'assistant'|'system'; content: string }
-
-// Feature flag check — used only for the onboarding map pipeline (shouldOfferSummaryNow).
-// The conversational system prompt is always V1; V0 has been retired.
-function isV1Enabled(): boolean {
-  return process.env.FEATURE_V1 === '1' && process.env.FEATURE_ONBOARDING_MAP === '1'
-}
 
 // Onboarding intake: ITC-first, conversation-led, domain-aware
 const SYSTEM_PROMPT_V1 = [
@@ -107,9 +102,45 @@ function mentionsConsequences(text: string) {
   const t = (text || '').toLowerCase()
   return /(hangover|withdrawal|dope\s*sick|tolerance|black(out|ed)|sleep|health|relationship|partner|kids?|job|work|boss|late|promotion|legal|court|probation|money|broke|finances?)/.test(t)
 }
-function mentionsSupports(text: string) {
+/** Positive protective factors — people, routines, or past successes explicitly framed as helpful. */
+function mentionsPositiveProtection(text: string) {
   const t = (text || '').toLowerCase()
-  return /(friend|uncle|aunt|mom|dad|partner|girlfriend|boyfriend|spouse|wife|husband|therap|group|meeting|sponsor|doctor|md|coach|support|community|exercise|gym|run\b|walk\b|workout|hobby|kids?\b|my family|routine|kept me|helps me|helped me|steadying|grounding|calms me|worked before|got through|better when|good stretch|sober (for|stretch|period)|daughter|son|my (mom|dad|wife|husband|partner))/.test(t)
+  return /(helps? me|helped me|keeps? me|kept me|grounds? me|calms? me|steadies me|i lean on|i can count on|i have my|my (kids?|family|partner|wife|husband|mom|dad|friend|sponsor|therapist|doctor|coach)|routine (helps?|keeps?|grounds?)|working out|exercise helps?|gym helps?|meeting helps?|talking to|got through|made it through|better when|good stretch|sober (for|stretch|period)|worked before|what worked|has worked|makes it easier|anchor|support (system|network)|i'm not alone|someone i trust|people who|someone who cares)/.test(t)
+}
+
+/** Count distinct positive-protection signal categories present in text. */
+function countPositiveProtectionSignals(text: string): number {
+  const t = text.toLowerCase()
+  let count = 0
+  if (/(helps? me|helped me|my (kids?|family|partner|wife|husband|mom|dad|friend)|i lean on|i can count on|someone i trust)/.test(t)) count++
+  if (/(routine|working out|exercise|gym|walk|meeting|yoga|meditation|sober (for|stretch)|program)/.test(t)) count++
+  if (/(got through|made it through|better when|good stretch|worked before|what worked|has worked|made it)/.test(t)) count++
+  if (/(therapist|therapy|counselor|doctor|treatment|sponsor|aa\b|na\b|coach)/.test(t)) count++
+  return count
+}
+
+/** Communication style is complete only if there is a usable style signal — not just "I don't know". */
+function mentionsCommunicationStyleComplete(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(direct|give it to me straight|just tell me|be blunt|practical|step.?by.?step|reflective|help me think|think (it|things) through|gentle|soft|not too hard|go easy|mixed.*support|prefer.*direct|prefer.*gentle|prefer.*practical|prefer.*reflective|both.*practical|both.*reflective|then get practical|get practical|help me figure|understand (me|first)|need structure|just the facts)/.test(t)
+}
+
+/** User expressing desire or movement toward change. */
+function hasChangeTalk(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(want to (change|stop|quit|cut back|reduce|be different|do better)|ready to|i should|i need to change|trying to change|i want to be|hoping to|i decided|i'm done|enough is enough|time to|making a change|work on (this|it|myself)|get better|get help|something has to change)/.test(t)
+}
+
+/** User expressing pull away from change or reasons to stay the same. */
+function hasSustainTalk(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(not ready|don't want to stop|don't want to quit|part of me (doesn'?t|don'?t want|wants to keep)|can'?t imagine (not|without)|i'?d miss|i need it|i like (it|drinking|using)|it helps me|can'?t (stop|quit|give it up)|not sure (if|whether|i want to)|still want|don'?t think i can|it'?s not that bad|works for me|not a problem|i'?m fine|others have it worse|everyone does it|it'?s just|i'?m in control)/.test(t)
+}
+
+/** True if substance or behavior was explicitly named. */
+function mentionsSubstance(text: string) {
+  const t = (text || '').toLowerCase()
+  return /(drink|drinking|alcohol|wine|beer|spirits|smoke|smoking|weed|cannabis|marijuana|cocaine|coke|meth\b|methamphetamine|pill|pills|opioid|opioids|heroin|fentanyl|benzo|xanax|oxy\b|oxycontin|adderall|stimulant|drug|substance|using|i use|i've been using)/.test(t)
 }
 function mentionsFunction(text: string) {
   const t = (text || '').toLowerCase()
@@ -312,71 +343,200 @@ function isCrisis(text: string): boolean {
   return safetyScreen(text).triggered
 }
 
-/* -------- segment tracking -------- */
+/* -------- coverage model -------- */
 
-/**
- * Derive which of the 10 onboarding domains we are likely in
- * based on coverage heuristics. Returns 0–9.
- */
-function deriveCurrentSegment(history: Msg[], latest: string): number {
-  const blob = conversationText(history, latest)
-  const userTurns = history.filter(m => m.role === 'user').length
+type DomainStatus = 'unseen' | 'partial' | 'complete' | 'deferred'
+type SafetyStatus = 'unseen' | 'screened_low' | 'screened_concern' | 'deferred_low_signal'
 
-  // Domain 0 — Opening: always covered once they say anything substantive
-  if (userTurns < 1) return 0
-
-  // Domain 1 — Behavior pattern
-  if (!mentionsFrequency(blob)) return 1
-
-  // Domain 2 — Function: what the behavior gives them
-  if (!mentionsFunction(blob) && userTurns < 4) return 2
-
-  // Domain 3 — Costs & consequences
-  if (!mentionsConsequences(blob)) return 3
-
-  // Domain 4 — Motivation & goals
-  if (!hasGoal(blob)) return 4
-
-  // Domain 5 — Identity
-  if (!mentionsIdentity(blob) && userTurns < 7) return 5
-
-  // Domain 6 — Supports
-  if (!mentionsSupports(blob)) return 6
-
-  // Domain 7 — Strengths
-  if (!mentionsStrengths(blob) && userTurns < 9) return 7
-
-  // Domain 8 — Readiness & ambivalence
-  if (!mentionsReadiness(blob) && userTurns < 11) return 8
-
-  // Domain 9 — Communication style
-  if (!mentionsCommunicationStyle(blob) && userTurns < 13) return 9
-
-  // Domain 10 (stored as 9 since 0-indexed) — Safety screen + closing
-  return 9
+interface DomainCoverage {
+  opening: DomainStatus
+  currentUse: DomainStatus
+  goals: DomainStatus
+  readiness: DomainStatus
+  riskMap: DomainStatus
+  protectionMap: DomainStatus
+  coachLens: DomainStatus
+  communication: DomainStatus
+  safety: SafetyStatus
+  ambivalence_clearly_present: boolean
 }
 
 /**
- * Whether a given segment has gathered "enough signal" to be considered covered.
- * Used by the route to decide whether to advance the segment counter.
+ * Compute per-domain coverage status from the full conversation.
+ * All statuses are derived from user message content only.
  */
-function hasEnoughSignal(segment: number, history: Msg[], latest: string): boolean {
-  const blob = conversationText(history, latest)
-  const userTurns = history.filter(m => m.role === 'user').length
+export function computeDomainCoverage(history: Msg[], latest: string): DomainCoverage {
+  const userMessages = history.filter(m => m.role === 'user').map(m => m.content || '')
+  const allUserText = [...userMessages, latest || ''].join(' ')
+  const userTurns = userMessages.length
 
-  switch (segment) {
-    case 0: return userTurns >= 1
-    case 1: return mentionsFrequency(blob)
-    case 2: return mentionsFunction(blob) || userTurns >= 4
-    case 3: return mentionsConsequences(blob)
-    case 4: return hasGoal(blob)
-    case 5: return mentionsIdentity(blob) || userTurns >= 7
-    case 6: return mentionsSupports(blob)
-    case 7: return mentionsStrengths(blob) || userTurns >= 9
-    case 8: return mentionsReadiness(blob) || userTurns >= 11
-    case 9: return mentionsCommunicationStyle(blob) || mentionsSafetyTopics(blob) || userTurns >= 14
-    default: return false
+  // opening — complete after first user message
+  const opening: DomainStatus = userTurns >= 1 ? 'complete' : 'unseen'
+
+  // currentUse — partial: substance named; complete: substance + (frequency OR function OR emotional)
+  const substancePresent = mentionsSubstance(allUserText)
+  const frequencyPresent = mentionsFrequency(allUserText)
+  const functionPresent  = mentionsFunction(allUserText)
+  const emotionalPresent = mentionsEmotionalDrivers(allUserText)
+  let currentUse: DomainStatus = 'unseen'
+  if (substancePresent) {
+    currentUse = (frequencyPresent || functionPresent || emotionalPresent) ? 'complete' : 'partial'
   }
+  if (currentUse === 'partial' && userTurns >= 8) currentUse = 'deferred'
+
+  // goals — partial: any vague goal language; complete: hasGoal() fires
+  const vagueGoal = /(what.*want|what.*hoping|figuring it out|don't know what.*want|thinking about|not sure (yet|what)|might|considering)/.test(allUserText.toLowerCase())
+  let goals: DomainStatus = 'unseen'
+  if (hasGoal(allUserText)) {
+    goals = 'complete'
+  } else if (vagueGoal) {
+    goals = 'partial'
+  }
+  if (goals === 'partial' && userTurns >= 10) goals = 'deferred'
+
+  // readiness — partial: any ambivalence signal; complete: both sides named
+  const changeTalkPresent  = hasChangeTalk(allUserText)
+  const sustainTalkPresent = hasSustainTalk(allUserText)
+  const ambivalence_clearly_present = changeTalkPresent && sustainTalkPresent
+  const anyReadinessSignal = mentionsReadiness(allUserText) || changeTalkPresent || sustainTalkPresent
+  let readiness: DomainStatus = 'unseen'
+  if (ambivalence_clearly_present) {
+    readiness = 'complete'
+  } else if (anyReadinessSignal) {
+    readiness = 'partial'
+  }
+  if (readiness === 'partial' && userTurns >= 12 && !ambivalence_clearly_present) readiness = 'deferred'
+
+  // riskMap — partial: 1 risk category; complete: 2+ distinct risk categories
+  const triggerPresent      = mentionsTriggers(allUserText)
+  const consequencePresent  = mentionsConsequences(allUserText)
+  const emotionalRiskPresent = emotionalPresent
+  const riskCategoryCount = [triggerPresent, consequencePresent, emotionalRiskPresent].filter(Boolean).length
+  let riskMap: DomainStatus = 'unseen'
+  if (riskCategoryCount >= 2) {
+    riskMap = 'complete'
+  } else if (riskCategoryCount >= 1) {
+    riskMap = 'partial'
+  }
+  if (riskMap === 'partial' && userTurns >= 10) riskMap = 'deferred'
+
+  // protectionMap — partial: mentionsPositiveProtection; complete: 2+ distinct categories OR 1 + prior success
+  const posProtectionCount = countPositiveProtectionSignals(allUserText)
+  const hasPriorSuccess    = mentionsStrengths(allUserText)
+  let protectionMap: DomainStatus = 'unseen'
+  if (posProtectionCount >= 2 || (posProtectionCount >= 1 && hasPriorSuccess)) {
+    protectionMap = 'complete'
+  } else if (mentionsPositiveProtection(allUserText)) {
+    protectionMap = 'partial'
+  }
+  if (protectionMap === 'partial' && userTurns >= 12) protectionMap = 'deferred'
+
+  // coachLens — partial: one of identity/values/strengths; complete: strengths + (identity OR values)
+  const identityPresent  = mentionsIdentity(allUserText)
+  const valuesPresent    = mentionsValues(allUserText)
+  const strengthPresent  = mentionsStrengths(allUserText)
+  let coachLens: DomainStatus = 'unseen'
+  if (strengthPresent && (identityPresent || valuesPresent)) {
+    coachLens = 'complete'
+  } else if (strengthPresent || identityPresent || valuesPresent) {
+    coachLens = 'partial'
+  }
+  if (coachLens === 'partial' && userTurns >= 12) coachLens = 'deferred'
+
+  // communication — partial: any style signal or "I don't know"; complete: usable style signal
+  const commCompletePresent = mentionsCommunicationStyleComplete(allUserText)
+  const commAnyPresent      = mentionsCommunicationStyle(allUserText)
+  const iDontKnowStyle      = /(don'?t know (how|what)|not sure (how|what)|hard to say|whatever works|i guess)/.test(allUserText.toLowerCase())
+  let communication: DomainStatus = 'unseen'
+  if (commCompletePresent) {
+    communication = 'complete'
+  } else if (commAnyPresent || iDontKnowStyle) {
+    communication = 'partial'
+  }
+  if (communication === 'partial' && userTurns >= 14) communication = 'deferred'
+
+  // safety — 4-state SafetyStatus
+  const anySafetyTrigger = history
+    .filter(m => m.role === 'user')
+    .some(m => safetyScreen(m.content || '').triggered) ||
+    safetyScreen(latest || '').triggered
+  let safety: SafetyStatus = 'unseen'
+  if (anySafetyTrigger) {
+    safety = 'screened_concern'
+  } else if (mentionsSafetyTopics(allUserText)) {
+    safety = 'screened_low'
+  } else if (userTurns >= 10) {
+    safety = 'deferred_low_signal'
+  }
+
+  return {
+    opening, currentUse, goals, readiness, riskMap, protectionMap,
+    coachLens, communication, safety, ambivalence_clearly_present,
+  }
+}
+
+/**
+ * Map a fine-grained domain/hint key to a 0-9 segment number for the
+ * X-Onboarding-Segment header (client progress indicator).
+ */
+export function domainToSegmentNumber(domain: string): number {
+  const map: Record<string, number> = {
+    opening: 0,
+    currentUse: 1, function: 2, emotionalDrivers: 2,
+    costs: 3,
+    goals: 4,
+    identity: 5,
+    protectionMap: 6,
+    coachLens: 7,
+    readiness: 8,
+    communication: 9, safety: 9,
+  }
+  return map[domain] ?? 9
+}
+
+/**
+ * Return the hint-domain key we should focus on next, based on current
+ * coverage and how many user turns have elapsed. Hint keys are more granular
+ * than coverage domain keys — they map sub-domains for the DOMAIN_HINTS table.
+ */
+export function nextDomainToFocus(coverage: DomainCoverage, userTurns: number): string {
+  const { opening, currentUse, goals, riskMap, protectionMap, coachLens,
+          communication, safety, readiness, ambivalence_clearly_present } = coverage
+
+  if (opening === 'unseen') return 'opening'
+
+  // currentUse and its sub-domains
+  if (currentUse === 'unseen') return 'currentUse'
+  if (currentUse === 'partial' && userTurns < 5) {
+    return riskMap === 'unseen' ? 'function' : 'emotionalDrivers'
+  }
+
+  // risk map — probe via costs (consequences), only after currentUse has some signal
+  if (riskMap === 'unseen') return 'costs'
+  if (riskMap === 'partial' && userTurns < 8) return 'emotionalDrivers'
+
+  // goals
+  if (goals === 'unseen' || goals === 'partial') return 'goals'
+
+  // protection map — high priority before summary
+  if (protectionMap === 'unseen') return 'protectionMap'
+  if (protectionMap === 'partial' && userTurns < 12) return 'protectionMap'
+
+  // safety (must be addressed before summary eligibility)
+  if (safety === 'unseen' && userTurns >= 8) return 'safety'
+
+  // coach lens
+  if (coachLens === 'unseen') return 'identity'
+  if (coachLens === 'partial') return 'coachLens'
+
+  // readiness
+  if (ambivalence_clearly_present && (readiness === 'unseen' || readiness === 'partial')) return 'readiness'
+  if (readiness === 'unseen' && userTurns >= 9) return 'readiness'
+
+  // communication style
+  if (communication === 'unseen' || communication === 'partial') return 'communication'
+
+  return 'communication'
 }
 
 /* -------- flow helpers -------- */
@@ -386,57 +546,37 @@ function conversationText(history: Msg[], latest: string) {
     .join(' ')
 }
 
-function coverageScore(history: Msg[], latest: string) {
-  const userText = history
-    .filter(m => m.role === 'user')
-    .map(m => (m.content || '').toLowerCase())
-    .concat((latest || '').toLowerCase())
-    .join('\n')
-
-  let score = 0
-  if (hasGoal(userText)) score++
-  if (mentionsFrequency(userText)) score++
-  if (mentionsTriggers(userText)) score++
-  if (mentionsConsequences(userText)) score++
-  if (mentionsSupports(userText)) score++
-  if (mentionsFunction(userText)) score++
-  if (mentionsStrengths(userText)) score++
-  if (mentionsReadiness(userText)) score++
-  if (mentionsEmotionalDrivers(userText)) score++
-  if (mentionsValues(userText)) score++
-  return score // 0..10
-}
-
 /**
- * Returns true when the minimum required domains for a complete onboarding
- * formulation all have at least some signal. Used instead of a raw score
- * threshold to ensure no specific domain is skipped.
+ * All required domains must have at least partial coverage before summary is
+ * offered. Stricter than the old keyword-score approach — each domain gate
+ * must pass individually, and safety must be explicitly addressed.
  */
-function hasMinimumRequiredCoverage(history: Msg[], latest: string): boolean {
-  const userText = history
-    .filter(m => m.role === 'user')
-    .map(m => (m.content || '').toLowerCase())
-    .concat((latest || '').toLowerCase())
-    .join('\n')
+export function hasMinimumRequiredCoverage(coverage: DomainCoverage): boolean {
+  const { currentUse, goals, riskMap, protectionMap, communication,
+          safety, readiness, ambivalence_clearly_present } = coverage
 
-  return (
-    mentionsFrequency(userText) &&           // current use / behavior pattern
-    mentionsTriggers(userText) &&            // risk map
-    mentionsFunction(userText) &&            // function (why they use/do it)
-    mentionsConsequences(userText) &&        // costs / consequences
-    hasGoal(userText) &&                     // goal / agenda
-    mentionsEmotionalDrivers(userText) &&   // emotional drivers (separate domain)
-    mentionsSupports(userText) &&           // protection map (separate domain)
-    mentionsCommunicationStyle(userText)    // communication style preference
-  )
+  // currentUse must be complete — substance + at least one more signal
+  if (currentUse !== 'complete') return false
+  // goals must be at least partial
+  if (goals === 'unseen') return false
+  // risk map needs at least partial signal
+  if (riskMap === 'unseen') return false
+  // protection map needs at least partial positive signal
+  if (protectionMap === 'unseen') return false
+  // safety must have been addressed (any non-unseen status qualifies)
+  if (safety === 'unseen') return false
+  // communication must be at least partial
+  if (communication === 'unseen') return false
+  // if ambivalence is clearly present, readiness must have been addressed
+  if (ambivalence_clearly_present && readiness === 'unseen') return false
+
+  return true
 }
 
-function shouldOfferSummaryNow(history: Msg[], latest: string) {
+export function shouldOfferSummaryNow(coverage: DomainCoverage, history: Msg[]): boolean {
   const userTurns = history.filter(m => m.role === 'user').length
-  if (userTurns < 7) return false
-  const segment = deriveCurrentSegment(history, latest)
-  // Require all 8 minimum required domains AND segment 9 (wrap-up domain) AND minimum turn count.
-  return hasMinimumRequiredCoverage(history, latest) && userTurns >= 7 && segment >= 9
+  if (userTurns < 8) return false
+  return hasMinimumRequiredCoverage(coverage)
 }
 
 
@@ -517,15 +657,21 @@ function nextIntakeQuestion(history: Msg[], latest: string): string {
   if (!mentionsConsequences(blob)) {
     return 'What impacts have you noticed lately—on sleep, mood, health, relationships, work, money, or anything legal?'
   }
-  if (!mentionsSupports(blob)) {
+  if (!mentionsPositiveProtection(blob)) {
     return 'Who or what helps even a little—people, routines, meetings, or anything you lean on when things are hard?'
   }
   return 'Before we switch to skills, what would “a good outcome” from this change look like in your day-to-day life?'
 }
 
-function skillsIntercept(history: Msg[], latest: string) {
-  const score = coverageScore(history, latest)
-  if (score >= 4) return null // we have enough—let model proceed (or later we can switch modes)
+function skillsIntercept(coverage: DomainCoverage, history: Msg[], latest: string) {
+  const coveredCount = [
+    coverage.currentUse !== 'unseen',
+    coverage.goals !== 'unseen',
+    coverage.riskMap !== 'unseen',
+    coverage.protectionMap !== 'unseen',
+    coverage.communication !== 'unseen',
+  ].filter(Boolean).length
+  if (coveredCount >= 4) return null
   const q = nextIntakeQuestion(history, latest)
   return `I hear you wanting something concrete. I can switch to skills right after we capture a couple essentials so the suggestions actually fit you. Could I ask: ${q}`
 }
@@ -557,56 +703,66 @@ function countRecentVague(prior: Msg[], input: string): number {
 
 /* -------- per-turn domain focus hint -------- */
 
-const DOMAIN_HINTS: Record<number, string> = {
-  0: `CURRENT ONBOARDING FOCUS: Opening / Why Now
+const DOMAIN_HINTS: Record<string, string> = {
+  opening: `CURRENT ONBOARDING FOCUS: Opening / Why Now
 Goal: Understand what brought this person here and how they frame the situation in their own words.
 Example stems: "What's been going on that brought you here?" or "What made this feel like the right time to try something different?"
 Do not yet ask about patterns, triggers, solutions, or what would help.`,
 
-  1: `CURRENT ONBOARDING FOCUS: Behavior Pattern
+  currentUse: `CURRENT ONBOARDING FOCUS: Behavior Pattern
 Goal: Understand what they are using, when, how often, and roughly how much — in their own words.
 Example stems: "What does a typical week look like for you?" or "When you do drink, roughly how much tends to happen?"
 Do not ask what would help or what might change. Gather information only.`,
 
-  2: `CURRENT ONBOARDING FOCUS: Function (What does it give them?)
+  function: `CURRENT ONBOARDING FOCUS: Function (What does it give them?)
 Goal: Understand what the behavior does for them in the short term — relief, connection, escape, routine, reward.
 Example stems: "What does drinking do for you in the moment?" or "What does it give you that's hard to get another way?"
 Do not name the function for them. Do not move to costs yet. Do not ask what they could do instead.`,
 
-  3: `CURRENT ONBOARDING FOCUS: Costs and Consequences
+  emotionalDrivers: `CURRENT ONBOARDING FOCUS: Emotional Drivers
+Goal: Understand the moods, feelings, and mental states most connected to the behavior.
+Example stems: "Are there particular feelings that tend to come just before — like stress, loneliness, numbness, or something else?" or "What's usually going on emotionally when it's hardest to stay with your intentions?"
+Explore without labeling. Do not suggest emotions. Do not move to coping strategies.`,
+
+  costs: `CURRENT ONBOARDING FOCUS: Costs and Consequences
 Goal: Let them name what concerns or bothers them — do not list impacts for them.
 Example stems: "What, if anything, has felt harder because of your drinking?" or "Has anything shifted lately that you've noticed?"
 Sit with ambivalence. Do not reassure or suggest. Do not ask what would help.`,
 
-  4: `CURRENT ONBOARDING FOCUS: Motivation and Goals
+  goals: `CURRENT ONBOARDING FOCUS: Motivation and Goals
 Goal: Understand what they want and what a good outcome looks like — even if it's vague or undecided.
 Example stems: "What are you hoping for, even if it's not totally clear yet?" or "If things went better, what would be the first sign of that?"
 Do not push toward a specific goal type. If they named a goal already, do NOT ask about goals again — move to the next domain.`,
 
-  5: `CURRENT ONBOARDING FOCUS: Identity and Meaning
+  identity: `CURRENT ONBOARDING FOCUS: Identity and Meaning
 Goal: Explore who they are, what this means to their sense of self, who they want to be.
 Example stems: "What does this feel like it means about you, if anything?" or "Is there a version of yourself connected to this that feels important to understand?"
 Explore gently. Do not interpret, resolve, or reframe. Do not ask what they could do differently.`,
 
-  6: `CURRENT ONBOARDING FOCUS: Supports and Resources
-Goal: Map who or what helps them, even a little — people, routines, places, prior efforts.
+  protectionMap: `CURRENT ONBOARDING FOCUS: Supports and Resources
+Goal: Map who or what helps them, even a little — people, routines, places, prior efforts. Look for concrete protective factors.
 Example stems: "Is there anyone who makes it a bit easier?" or "Have there been times — even briefly — when things went better? What was different then?"
 Do not frame absence of support as a deficit. Accept "nothing" without pushing. Do not ask what would help going forward.`,
 
-  7: `CURRENT ONBOARDING FOCUS: Strengths and Prior Navigation
-Goal: Surface what they have already tried, what capacity they have, what they've managed before.
-Example stems: "Have you gotten through a stretch without drinking before, even briefly? What made that possible?" or "What have you tried, even if it didn't stick?"
+  coachLens: `CURRENT ONBOARDING FOCUS: Strengths and Prior Navigation
+Goal: Surface what they have already tried, what capacity they have, what they've managed before — how they handle difficult decisions and impulses.
+Example stems: "Have you gotten through a stretch without drinking before, even briefly? What made that possible?" or "When an urge hits, what tends to happen — do you usually go with it or find yourself pausing?"
 Do not praise or cheerlead. If they minimize a past effort, explore what they actually did — not just the outcome.`,
 
-  8: `CURRENT ONBOARDING FOCUS: Readiness and Ambivalence
-Goal: Understand where they are right now — not to resolve ambivalence but to understand it.
+  readiness: `CURRENT ONBOARDING FOCUS: Readiness and Ambivalence
+Goal: Understand where they are right now — not to resolve ambivalence but to understand it clearly on both sides.
 Example stems: "How does it feel right now — is part of you still unsure about this?" or "What pulls you toward trying, and what pulls you back?"
 Reflect both sides. Do not push toward change. Do not insert change talk.`,
 
-  9: `CURRENT ONBOARDING FOCUS: Communication Style and Closing
-Goal: Understand how they prefer to receive support, then move toward a summary offer.
+  communication: `CURRENT ONBOARDING FOCUS: Communication Style and Closing
+Goal: Understand how they prefer to receive support — practical, reflective, direct, gentle, or mixed.
 Example stems: "When you're working through something tough, do you find it more helpful when someone gets practical, or when they help you think it through?" or "Is there anything about how you'd like me to talk to you that would help?"
-This is the final intake domain. After this, offer a summary.`,
+Note: "I don't know" is partial, not complete — gently probe once more if needed. This is the final intake domain before the summary.`,
+
+  safety: `CURRENT ONBOARDING FOCUS: Safety Screen
+Goal: Briefly and warmly check in on any safety-relevant areas that haven't come up — without interrogating.
+Example stems: "Before we go further, I want to check in on one thing — is there anything going on physically or safety-wise that I should know about?" or "Sometimes when people are dealing with this kind of thing, there are moments that feel really unsafe. Has anything like that been happening?"
+Keep it brief. One question only. Do not dramatize. If nothing concerning arises, move on.`,
 }
 
 const VAGUE_LOOP_ADDITION = `
@@ -642,8 +798,8 @@ function buildRecentQuestionsWarning(history: Msg[]): string {
  * is currently in focus and what a useful next question looks like.
  * Injected as a system message immediately before the user's latest input.
  */
-function buildDomainHint(segment: number, vagueCount: number, history: Msg[]): string {
-  const base = DOMAIN_HINTS[Math.min(segment, 9)] ?? DOMAIN_HINTS[9]
+function buildDomainHint(domainKey: string, vagueCount: number, history: Msg[]): string {
+  const base = DOMAIN_HINTS[domainKey] ?? DOMAIN_HINTS['communication']
   const repetitionWarning = buildRecentQuestionsWarning(history)
   const vagueAddition = vagueCount >= 2 ? VAGUE_LOOP_ADDITION : ''
   return (base + repetitionWarning + vagueAddition).trim()
@@ -653,12 +809,12 @@ function buildDomainHint(segment: number, vagueCount: number, history: Msg[]): s
 function buildFallback(input: string) {
   const t = (input || '').trim()
   if (!t) {
-    return 'Thanks for checking in. What would you like me to understand about you so I can tailor the onboarding?'
+    return 'What would you like me to understand about you so I can tailor things to what you need?'
   }
   if (t.length < 40) {
     return `It sounds like this is really on your mind. Could you share a bit more about what’s been happening today so I can understand better?`
   }
-  return `Thanks for sharing that. I want to make sure I have it right: ${t.slice(0, 140)}… What would you most like help with as we get started?`
+  return `I want to make sure I have this right — ${t.slice(0, 140)}… What would you most like help with as we get started?`
 }
 
 /* Single, non-streaming call with a generous timeout */
@@ -704,13 +860,11 @@ export async function POST(req: NextRequest) {
       input,
       history = [],
       finalize = false,
-      segment: clientSegment,
       closePhase,
     } = await req.json() as {
       input: string
       history?: Msg[]
       finalize?: boolean
-      segment?: number   // 0-9; client may pass current segment, server derives if absent
       closePhase?: { spokenDone: boolean; writtenDone: boolean }
     }
 
@@ -757,19 +911,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Choose system prompt based on feature flags
-    const systemPrompt = SYSTEM_PROMPT_V1
-    const base: Msg[] = [{ role: 'system', content: systemPrompt }]
+    const base: Msg[] = [{ role: 'system', content: SYSTEM_PROMPT_V1 }]
     const prior = (history || []).filter(m => m.role === 'user' || m.role === 'assistant')
     const transcriptWithCurrent = prior.concat({ role: 'user', content: input || '' })
 
-    // Derive current segment (use client hint if valid, otherwise compute)
-    const currentSegment =
-      typeof clientSegment === 'number' && clientSegment >= 0 && clientSegment <= 9
-        ? clientSegment
-        : deriveCurrentSegment(prior, input)
-    const segmentComplete = hasEnoughSignal(currentSegment, prior, input)
-    const nextSegment = segmentComplete ? Math.min(currentSegment + 1, 9) : currentSegment
+    // Compute coverage-led state — replaces old deriveCurrentSegment / hasEnoughSignal
+    const coverage = computeDomainCoverage(prior, input)
+    const userTurns = prior.filter(m => m.role === 'user').length
+    const activeDomain = nextDomainToFocus(coverage, userTurns)
+    const currentSegment = domainToSegmentNumber(activeDomain)
 
     // Post-overdose branch: check early — before summary checks — so the
     // assessment takes priority over spoken-summary or finalize triggers.
@@ -793,24 +943,44 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // If last turn was a summary offer and user said yes now, produce the summary.
+    /**
+     * Build the formulation context string for summary generation.
+     * Runs mapTranscriptToFormulation synchronously before generating the
+     * written summary so the summary is grounded in structured formulation
+     * state — not just the raw transcript alone.
+     */
+    async function buildFormulationContext(transcript: Msg[]): Promise<string> {
+      try {
+        const transcriptText = transcript
+          .filter(m => m.role !== 'system')
+          .map(m => `${m.role === 'user' ? 'User' : 'Coach'}: ${m.content || ''}`)
+          .join('\n\n')
+        const formulation = await mapTranscriptToFormulation(`session_${Date.now()}`, transcriptText)
+        return `\n\nSTRUCTURED FORMULATION CONTEXT (produced from this transcript — use alongside the conversation to strengthen accuracy):\n${JSON.stringify(formulation, null, 2)}`
+      } catch {
+        return ''
+      }
+    }
+
+    // If last turn was a summary offer and user said yes now, produce the written summary.
     if (lastTurnWasOfferAndUserSaidYes(transcriptWithCurrent) || userAskedForSummary(input || '')) {
+      const formulationCtx = await buildFormulationContext(transcriptWithCurrent)
       const messages: Msg[] = [
         ...FINALIZE_BASE,
-        { role: 'system', content: FINALIZE_PROMPT },
+        { role: 'system', content: FINALIZE_PROMPT + formulationCtx },
         {
           role: 'user',
           content: `Here is the full transcript as JSON array of {role,content}. Write the intake summary report now:\n\n${JSON.stringify(transcriptWithCurrent)}`
         }
       ]
-      const summary = await callOpenAI(messages, 800)
+      const summary = await callOpenAI(messages, 900)
       const cleanSummary = stripHtmlComments(summary || '')
       return new Response(cleanSummary.trim(), {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Cache-Control': 'no-store',
           'X-Summary-Complete': '1',
-          'X-Onboarding-Segment': String(nextSegment),
+          'X-Onboarding-Segment': String(currentSegment),
         },
       })
     }
@@ -821,29 +991,38 @@ export async function POST(req: NextRequest) {
     // immediately producing a summary. The spoken → written flow handles that naturally.
     if (finalize) {
       const transcript = prior.concat({ role: 'user', content: input || '' })
+      const formulationCtx = await buildFormulationContext(transcript)
+      // Add coverage warning if domains are still missing
+      const missingDomains: string[] = []
+      if (coverage.protectionMap === 'unseen') missingDomains.push('protection map (what helps)')
+      if (coverage.safety === 'unseen') missingDomains.push('safety screen')
+      if (coverage.communication === 'unseen') missingDomains.push('communication style')
+      const coverageNote = missingDomains.length > 0
+        ? `\n\nCOVERAGE NOTE: The following domains were not covered in this transcript — write around the gaps honestly: ${missingDomains.join(', ')}.`
+        : ''
       const messages: Msg[] = [
         ...FINALIZE_BASE,
-        { role: 'system', content: FINALIZE_PROMPT },
+        { role: 'system', content: FINALIZE_PROMPT + formulationCtx + coverageNote },
         {
           role: 'user',
           content: `Here is the full transcript as JSON array of {role,content}. Write the intake summary report now:\n\n${JSON.stringify(transcript)}`,
         },
       ]
-      const finText = await callOpenAI(messages, 800)
+      const finText = await callOpenAI(messages, 900)
       const cleanFinText = stripHtmlComments(finText || '')
       return new Response(cleanFinText.trim(), {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Cache-Control': 'no-store',
           'X-Summary-Complete': '1',
-          'X-Onboarding-Segment': String(nextSegment),
+          'X-Onboarding-Segment': String(currentSegment),
         },
       })
     }
 
     // Intercept skills requests during onboarding until we have enough coverage
     if (wantsSkills(input)) {
-      const intercept = skillsIntercept(prior, input)
+      const intercept = skillsIntercept(coverage, prior, input)
       if (intercept) {
         return new Response(intercept, {
           headers: {
@@ -856,8 +1035,8 @@ export async function POST(req: NextRequest) {
       // else: allow model to proceed
     }
 
-    // Segment 9 close: generate spoken summary via model, then offer written version
-    const readyToOffer = shouldOfferSummaryNow(prior, input)
+    // Coverage complete: generate spoken summary, then offer written version
+    const readyToOffer = shouldOfferSummaryNow(coverage, prior)
     if (
       readyToOffer &&
       !hasOfferedSummaryRecently(prior) &&
@@ -877,7 +1056,7 @@ export async function POST(req: NextRequest) {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Cache-Control': 'no-store',
-          'X-Onboarding-Segment': String(nextSegment),
+          'X-Onboarding-Segment': String(currentSegment),
           'X-Spoken-Summary': '1',
         },
       })
@@ -885,7 +1064,7 @@ export async function POST(req: NextRequest) {
 
     // Regular onboarding turn — inject per-turn domain focus hint before user message
     const vagueCount = countRecentVague(prior, input)
-    const domainHint = buildDomainHint(currentSegment, vagueCount, prior)
+    const domainHint = buildDomainHint(activeDomain, vagueCount, prior)
     const convo: Msg[] = [
       ...base,
       ...prior,
@@ -915,7 +1094,7 @@ export async function POST(req: NextRequest) {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-store',
-        'X-Onboarding-Segment': String(nextSegment),
+        'X-Onboarding-Segment': String(currentSegment),
       },
     })
   } catch (e) {

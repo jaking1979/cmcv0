@@ -203,6 +203,9 @@ export default function AdvicePage() {
 
   // ── Onboarding finalize ────────────────────────────────────────────────
   // Generates the written intake summary then transitions to coaching.
+  // Includes closePhase state so the API's hard gate fires correctly after
+  // the summary is delivered. The API injects coverage warnings when
+  // required domains are missing.
   const handleFinalize = useCallback(async () => {
     if (finalizing || messages.length === 0) return
     setFinalizing(true)
@@ -211,7 +214,12 @@ export default function AdvicePage() {
       const res = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: 'finish', history: historyForApi, finalize: true }),
+        body: JSON.stringify({
+          input: 'finish',
+          history: historyForApi,
+          finalize: true,
+          closePhase: onboardingClosePhase,
+        }),
       })
       const text = await res.text().catch(() => '')
       const summaryMsg: ChatMessage = {
@@ -230,7 +238,7 @@ export default function AdvicePage() {
     } finally {
       setFinalizing(false)
     }
-  }, [finalizing, messages, addMessage, updateMemory, setAppStage])
+  }, [finalizing, messages, onboardingClosePhase, addMessage, updateMemory, setAppStage])
 
   // ── Composer send ──────────────────────────────────────────────────────
   const handleSend = useCallback((text: string) => {

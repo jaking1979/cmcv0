@@ -110,17 +110,20 @@ export async function GET(request: NextRequest) {
       success: true,
       info: {
         enabled: true,
-        assessments: [
-          'Self-Compassion Scale (SCS)',
-          'URICA - Stages of Change',
-          'Kessler 10 (K10) - Psychological Distress',
-          'WHO-5 - Wellbeing Index',
-          'DBT-WCCL - Coping Strategies',
-          'Coping Self-Efficacy Scale (CSE)',
-          'ASSIST - Substance Use Screening',
-          'ASI - Addiction Severity Index'
+        schema_version: '1.0',
+        formulation_fields: [
+          'current_use (substances, pattern, trajectory, functional impact)',
+          'ideal_goal (goal type, specificity, ambivalence level, values signals)',
+          'risk_map (triggers, emotional drivers, high-risk times/places)',
+          'protection_map (supportive people, routines, prior successes)',
+          'coach_profiles (mi, act, dbt, mindfulness, self_compassion, executive_support)',
+          'communication_profile (style, depth, help-seeking, challenge tolerance)',
+          'safety_flags (suicidal ideation, overdose, withdrawal, DV, acute risk level)',
+          'behavioral_dimensions (impulse-reflection, solo-social, avoidance-approach, planned-in-moment, relief-values, direct-feedback)',
+          'confidence_summary (per domain + low_confidence_domains)',
+          'segment_coverage (per V1 domain + overall)'
         ],
-        note: 'This endpoint infers assessment constructs from natural conversation. It does not replace formal clinical assessment.'
+        note: 'Produces a first-pass heuristic OnboardingFormulation from natural conversation. Not a clinical assessment — all outputs are provisional.'
       }
     })
   } catch (error) {

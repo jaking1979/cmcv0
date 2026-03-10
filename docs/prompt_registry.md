@@ -79,36 +79,36 @@ CRITICAL SAFETY AND SCOPE GUIDELINES:
 
 **Used in:** Composed into `SYSTEM_PROMPT_V1` in `src/app/api/onboarding/route.ts`.
 
-**Last major revision:** Onboarding prompt + safety overhaul (March 2026). Added REFLECTION DISCIPLINE with banned openers; expanded domains 2, 6, and 8; added Domain 3.5 (Emotional Drivers); replaced SUMMARY OFFER TRIGGER with SUMMARY TIMING + banned wrap-up phrases; added COMPLETION REQUIREMENT gate; expanded COACH LENS with behavioral dimension gathering guidance.
+**Last major revision:** V1 onboarding refactor (March 2026). Folded Domain 3.5 (Emotional Drivers) into Domain 2 (now "Behavior Pattern, High-Risk Contexts, AND Emotional Drivers") to align with 10-domain spec. Added TURN SHAPE VARIETY section to counter mechanical "reflection + question" pattern. Tightened COMPLETION REQUIREMENT from 8 to 9 signals (adding safety screen as required). Strengthened protection map requirement (concrete positive factor, not just a mention). Strengthened communication style requirement (usable signal, not just "I don't know").
 
 **Key rules:**
 - One question per turn, never more
-- Responses ≤ 160 words
+- Responses ≤ 160 words (varies by turn shape — some turns may be shorter)
 - No advice, skills, or coping strategies during onboarding
 - Every question must gather information about the person's situation — no solution-oriented questions
 - **REFLECTION DISCIPLINE:** Banned openers include "It sounds like…", "That sounds…", "That makes sense", "I can understand…", "Can you tell me more about that?" as standalone, "Thank you for sharing…". Every response must add something specific and forward-moving.
-- Moves organically through **11 domains** (Opening, Behavior Pattern + High-Risk Contexts, Function, Emotional Drivers *(new)*, Costs, Motivation/Goals, Identity + Values + Meaning, Supports, Strengths + Decision-Making Style, Readiness, Communication Style/Closing)
+- **TURN SHAPE VARIETY:** Model is instructed to use varied turn shapes beyond reflection + question: reflection-only, recap + redirect, empathic redirect, brief rationale before question, warm domain transition, pacing note. Response length should vary.
+- Moves organically through **10 domains** (Opening, Behavior Pattern + High-Risk Contexts + Emotional Drivers, Function, Costs, Motivation/Goals, Identity + Values + Meaning, Supports, Strengths + Decision-Making Style, Readiness, Communication Style/Closing)
 - Contains branching logic for ambivalence, shame, vague answers, withdrawal risk, and intoxication
 - Contains a safety interrupt for suicidality, overdose, withdrawal, DV, and medical urgency
 - **Does not offer a summary itself** — server controls all summary triggering (see `shouldOfferSummaryNow()` in route.ts)
-- **COMPLETION REQUIREMENT:** Must not close or wrap up until all 8 required signals are present: substance/frequency/quantity, at least one trigger, function, emotional driver, cost, goal, support/strength, communication style preference
-- **SUMMARY TIMING ban:** 5 specific wrap-up phrases prohibited at all times during onboarding (e.g., "as we wrap up", "I think I have a good picture", "shall I summarize")
+- **COMPLETION REQUIREMENT:** Must not close or wrap up until all **9** required signals are present: substance/frequency/context, at least one trigger, function, emotional driver, cost, goal, concrete protective factor (positive framing), communication style signal (not just "I don't know"), and safety screen addressed
+- **SUMMARY TIMING ban:** Specific wrap-up phrases prohibited at all times during onboarding
 
-**Domain summary (11 domains):**
+**Domain summary (10 domains):**
 
-| # | Domain | Key addition vs. prior version |
+| # | Domain | Key changes in this revision |
 |---|--------|--------------------------------|
 | 1 | Opening | Unchanged |
-| 2 | Behavior Pattern **and High-Risk Contexts** | Now explicitly requires triggers/high-risk situations |
+| 2 | Behavior Pattern, **High-Risk Contexts, AND Emotional Drivers** | Folded Domain 3.5 in; now 2a (pattern) + 2b (emotional drivers) |
 | 3 | Function | Unchanged |
-| 3.5 | **Emotional Drivers** *(new)* | Moods and mental states connected to use |
 | 4 | Costs and Consequences | Unchanged |
 | 5 | Motivation and Goals | Unchanged |
-| 6 | Identity, **Values, and Meaning** | Now explicitly surfaces values and what they're trying to protect |
+| 6 | Identity, Values, and Meaning | Unchanged |
 | 7 | Supports and Resources | Unchanged |
-| 8 | Strengths, Prior Navigation, **and Decision-Making Style** | Now gathers how they handle urges; plan vs. react |
+| 8 | Strengths, Prior Navigation, and Decision-Making Style | Unchanged |
 | 9 | Readiness and Ambivalence | Unchanged |
-| 10 | Communication Style and Closing | Unchanged |
+| 10 | Communication Style and Closing | Communication style now requires usable signal, not just "I don't know" |
 
 **Source:** `src/server/ai/promptFragments.ts` — `ONBOARDING_V1_PROMPT`
 
@@ -271,7 +271,7 @@ TONE:
 
 **What it is:** Injected as an additional system message (before the user's final input) to trigger the spoken summary at the close of onboarding. Produces a conversational first-pass summary and offers a fuller written version.
 
-**Triggered when:** `shouldOfferSummaryNow()` returns true — `hasMinimumRequiredCoverage()` passes all 8 required domains (behavior pattern, triggers, function, costs, goal, emotional drivers, supports/protection map, and communication style) AND ≥ 7 user turns AND segment ≥ 9 AND a summary has not recently been offered or produced.
+**Triggered when:** `shouldOfferSummaryNow()` returns true — `hasMinimumRequiredCoverage()` passes all required domains (currentUse complete, goals partial+, riskMap partial+, protectionMap partial+, safety not unseen, communication partial+, readiness partial+ when ambivalence clearly present) AND ≥ 8 user turns AND a summary has not recently been offered or produced. **Note: the `segment >= 9` gate has been removed — coverage-led eligibility replaces it.**
 
 **Current content:**
 ```
@@ -337,6 +337,8 @@ Maximum 220 words total. No markdown. No headers. Plain paragraphs separated by 
 
 **Source:** `src/app/api/onboarding/route.ts` — `FINALIZE_PROMPT`
 
+**V1 refactor change:** `FINALIZE_PROMPT` is now appended with a structured formulation context block before being sent to the model. The route calls `mapTranscriptToFormulation()` synchronously before the summary call and injects the resulting `OnboardingFormulation` JSON as additional context. This ensures the written summary is grounded in structured formulation state — not just the raw transcript alone. If mapping fails, the prompt proceeds without the context block.
+
 ---
 
 ### FINALIZE\_BASE
@@ -396,24 +398,33 @@ STYLE RULES for this branch:
 
 ### DOMAIN\_HINTS (per-turn injections)
 
-**What it is:** A set of 10 short, directive system messages (one per onboarding domain) injected immediately before the user's latest message in every regular onboarding turn. Each hint names the current focus domain, states the goal, gives example question stems, and lists what NOT to ask about yet.
+**What it is:** A set of short, directive system messages (one per onboarding domain/sub-domain) injected immediately before the user's latest message in every regular onboarding turn. Each hint names the current focus domain, states the goal, gives example question stems, and lists what NOT to ask about yet.
 
-**How selected:** `buildDomainHint()` picks the hint for the current domain segment (0–9), appends an anti-repetition warning (derived from the last 2–3 assistant questions), and optionally appends `VAGUE_LOOP_ADDITION`.
+**V1 refactor changes:**
+- Keys changed from integers (0–9) to string domain names — aligned with the coverage model
+- Added new hints: `emotionalDrivers` (sub-domain of currentUse), `safety` (new required domain)
+- `function` is now its own hint key (sub-domain of currentUse)
+- `buildDomainHint()` now accepts a string domain key instead of a segment number
+- Selection is done by `nextDomainToFocus()` (coverage-led) rather than `deriveCurrentSegment()` (brittle segment march)
+
+**How selected:** `nextDomainToFocus(coverage, userTurns)` returns the domain key based on current coverage state. `buildDomainHint(domainKey, vagueCount, history)` retrieves the hint, appends an anti-repetition warning, and optionally appends `VAGUE_LOOP_ADDITION`.
 
 **Source:** `src/app/api/onboarding/route.ts` — `DOMAIN_HINTS`
 
-| Domain | Focus |
-|--------|-------|
-| 0 | Opening / Why Now |
-| 1 | Behavior Pattern |
-| 2 | Function (What does it give them?) |
-| 3 | Costs and Consequences |
-| 4 | Motivation and Goals |
-| 5 | Identity and Meaning |
-| 6 | Supports and Resources |
-| 7 | Strengths and Prior Navigation |
-| 8 | Readiness and Ambivalence |
-| 9 | Communication Style and Closing |
+| Domain key | Focus | Coverage domain |
+|------------|-------|-----------------|
+| `opening` | Opening / Why Now | opening |
+| `currentUse` | Behavior Pattern | currentUse |
+| `function` | Function (What does it give them?) | currentUse (sub) |
+| `emotionalDrivers` | Emotional Drivers | riskMap (sub) |
+| `costs` | Costs and Consequences | riskMap (sub) |
+| `goals` | Motivation and Goals | goals |
+| `identity` | Identity and Meaning | coachLens (sub) |
+| `protectionMap` | Supports and Resources | protectionMap |
+| `coachLens` | Strengths and Prior Navigation | coachLens |
+| `readiness` | Readiness and Ambivalence | readiness |
+| `communication` | Communication Style and Closing | communication |
+| `safety` | Safety Screen *(new)* | safety |
 
 **Current content (all 10 domain hints):**
 
@@ -743,8 +754,8 @@ ALL inferences must be:
 - **When editing any prompt:** Update the relevant section(s) above to reflect the current text and any changes to composition logic, trigger conditions, or behavioral rules.
 - **When adding a new prompt:** Add a new entry with the same structure: What it is, What it is used for, Current content, Source file/export name.
 - **`ITC_MASTER_PROMPT` changes:** Edit `docs/ITC_master_rules.md`, then run `npm run generate:prompt` to regenerate `src/server/ai/generated/itcMasterRules.ts`. Update the summary in this file if the behavioral rules change substantially.
-- **`ONBOARDING_V1_PROMPT` domain changes:** The domain count is now 11 (Domain 3.5 added). If domains are added or removed, update the domain table above, the `DOMAIN_HINTS` table, and `deriveCurrentSegment()` in `route.ts`.
-- **Summary trigger logic:** `shouldOfferSummaryNow()` now uses `hasMinimumRequiredCoverage()` instead of a raw coverage score. To change what qualifies as "minimum required," edit `hasMinimumRequiredCoverage()` in `route.ts` and update the trigger conditions listed under `SPOKEN_SUMMARY_PROMPT` above.
+- **`ONBOARDING_V1_PROMPT` domain changes:** The domain count is **10** (Domain 3.5 folded into Domain 2). If domains are added or removed, update the domain table above, the `DOMAIN_HINTS` table in `route.ts`, and `computeDomainCoverage()` / `nextDomainToFocus()`.
+- **Summary trigger logic:** `shouldOfferSummaryNow()` uses `hasMinimumRequiredCoverage(coverage)` with an explicit `DomainCoverage` object. The old `segment >= 9` gate is removed — summary eligibility is coverage-led. To change what qualifies as "minimum required," edit `hasMinimumRequiredCoverage()` in `route.ts` and update the trigger conditions listed under `SPOKEN_SUMMARY_PROMPT` above.
 - **Close-phase state machine:** The summary loop is prevented by one-way boolean flags (`spokenDone`, `writtenDone`) tracked in `useChatState.ts` and passed back to the API on every request. `writtenDone` hard-gates the entire summary path in `route.ts`. Do not attempt to reset these flags — they are intentionally one-way.
 - **Post-overdose branch:** `isRecentNonAcuteOverdose()` regex in `route.ts` determines which overdose language routes to the assessment branch vs. the static 911 exit. If the pattern needs tuning, update the regex and the detection criteria listed under `POST_OVERDOSE_BRANCH_PROMPT` above.
 - **Adding new heuristics:** Coverage heuristics (`mentionsEmotionalDrivers`, `mentionsValues`, etc.) live in `route.ts`. `coverageScore()` returns 0–10; `hasMinimumRequiredCoverage()` now requires all 8 named domains: `mentionsFrequency`, `mentionsTriggers`, `mentionsFunction`, `mentionsConsequences`, `hasGoal`, `mentionsEmotionalDrivers`, `mentionsSupports`, and `mentionsCommunicationStyle`. Both `coverageScore()` and `hasMinimumRequiredCoverage()` must be updated together when adding or removing domains.
