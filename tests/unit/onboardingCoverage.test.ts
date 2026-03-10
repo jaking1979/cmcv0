@@ -2,7 +2,7 @@
  * Unit tests for the coverage-led onboarding model.
  *
  * Tests computeDomainCoverage(), hasMinimumRequiredCoverage(), and
- * shouldOfferSummaryNow() via the exported functions from route.ts.
+ * shouldOfferSummaryNow() via the exported functions from coverageModel.ts.
  *
  * Covers 8 user scenarios aligned with the V1 spec requirements.
  */
@@ -14,9 +14,8 @@ import {
   shouldOfferSummaryNow,
   nextDomainToFocus,
   domainToSegmentNumber,
-} from '../../src/app/api/onboarding/route'
-
-type Msg = { role: 'user' | 'assistant' | 'system'; content: string }
+  type Msg,
+} from '../../src/server/onboarding/coverageModel'
 
 function userMsg(content: string): Msg { return { role: 'user', content } }
 function assistantMsg(content: string): Msg { return { role: 'assistant', content } }
